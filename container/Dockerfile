@@ -1,7 +1,7 @@
 FROM continuumio/miniconda:4.5.11
 RUN conda install meta jupyter numba -y --quiet
 RUN conda clean -a
-RUN pip install --no-cache-dir histbook vega==1.3.0 vegascope meta pandas
+RUN pip install --no-cache-dir histbook vega==1.3.0 vegascope meta pandas awkward
 
 WORKDIR /root/
 COPY . /root/

@@ -1,6 +1,12 @@
 #!/bin/bash
 
-if [[ ! $(docker image ls -q coffea) ]]; then
+while getopts "b" opt; do
+  case $opt in
+    b) REBUILD=1;;
+  esac
+done
+
+if [[ $REBUILD || ! $(docker image ls -q coffea) ]]; then
   pushd container
   docker build -t coffea .
   popd
