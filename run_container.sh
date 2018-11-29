@@ -8,7 +8,7 @@ done
 
 if [[ $REBUILD || ! $(docker image ls -q coffea) ]]; then
   pushd container
-  docker build -t coffea .
+  docker build --no-cache -t coffea .
   popd
 fi
 
