@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 from __future__ import print_function, division
-from collections import defaultdict, OrderedDict, deque
+from collections import defaultdict, OrderedDict
 import concurrent.futures
 import gzip
 import pickle
@@ -11,11 +12,11 @@ import uproot
 import numpy as np
 from fnal_column_analysis_tools import hist, lookup_tools
 
-with open("data/datadef.json") as fin:
+with open("metadata/datadef.json") as fin:
     datadef = json.load(fin)
 
 extractor = lookup_tools.extractor()
-extractor.add_weight_sets(["* * data/n2ddt_transform_2017MC.root"])
+extractor.add_weight_sets(["* * correction_files/n2ddt_transform_2017MC.root"])
 extractor.finalize()
 evaluator = extractor.make_evaluator()
 n2ddt_rho_pt = evaluator[b"Rho2D"]
@@ -86,10 +87,12 @@ nevents = defaultdict(lambda: 0.)
 
 
 def processfile(dataset, file):
+    # Many 'invalid value encountered in ...' due to pt and msd sometimes being zero
+    # This will just fill some NaN bins in the histogram, which is fine
     tree = uproot.open(file)["Events"]
     arrays = tree.arrays(branches, namedecode='ascii')
     arrays["AK8Puppijet0_msd"] *= msd_weight(arrays["AK8Puppijet0_pt"], arrays["AK8Puppijet0_eta"])
-    arrays["jetrho"] = 2*np.log(np.maximum(arrays["AK8Puppijet0_msd"], 0.01)/arrays["AK8Puppijet0_pt"])
+    arrays["jetrho"] = 2*np.log(arrays["AK8Puppijet0_msd"]/arrays["AK8Puppijet0_pt"])
     arrays["AK8Puppijet0_N2sdb1_ddt"] = arrays["AK8Puppijet0_N2sdb1"] - n2ddt_rho_pt(arrays["jetrho"], arrays["AK8Puppijet0_pt"])
     hout = {}
     for k in hists.keys():
@@ -104,24 +107,28 @@ nworkers = 10
 fileslice = slice(None)
 #with concurrent.futures.ThreadPoolExecutor(max_workers=nworkers) as executor:
 with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
-    futures = deque()
+    futures = set()
     for dataset, info in datadef.items():
-        futures.extend(executor.submit(processfile, dataset, file) for file in info['files'][fileslice])
+        futures.update(executor.submit(processfile, dataset, file) for file in info['files'][fileslice])
     try:
-        nfiles = len(futures)
-        for i in range(nfiles):
-            fut = futures.popleft()
-            dataset, nentries, hout = fut.result()
-            nevents[dataset] += nentries
-            for k in hout.keys():
-                hists[k] += hout[k]
-            print("Processing: done with % 4d / % 4d files" % (i+1, nfiles))
-            del fut
+        total = len(futures)
+        processed = 0
+        while len(futures) > 0:
+            finished = set(job for job in futures if job.done())
+            for job in finished:
+                dataset, nentries, hout = job.result()
+                nevents[dataset] += nentries
+                for k in hout.keys():
+                    hists[k] += hout[k]
+                processed += 1
+                print("Processing: done with % 4d / % 4d files" % (processed, total))
+            futures -= finished
+        del finished
     except KeyboardInterrupt:
         print("Ok quitter")
-        for fut in futures: fut.cancel()
+        for job in futures: job.cancel()
     except:
-        for fut in futures: fut.cancel()
+        for job in futures: job.cancel()
         raise
 
 scale = dict((ds, lumi * dataset_xs[ds] / nevents[ds]) for ds in nevents.keys())
@@ -135,6 +142,7 @@ print("Processed %.1fM events" % (sum(nevents.values())/1e6, ))
 print("Filled %.1fM bins" % (nbins/1e6, ))
 print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
 
+# Pickle is not very fast or memory efficient, will be replaced by something better soon
 with gzip.open("hists.pkl.gz", "wb") as fout:
     pickle.dump(hists, fout)
 

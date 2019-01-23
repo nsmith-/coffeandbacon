@@ -1,1 +1,4 @@
 .ipynb_checkpoints
+*.pyc
+*.root
+fnal-column-analysis-tools

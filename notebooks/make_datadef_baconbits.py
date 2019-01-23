@@ -37,7 +37,7 @@ def read_xsections(filename):
 
 
 # curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/DDB/analysis/ggH/xSections.dat
-xsections = read_xsections("data/xSections.dat")
+xsections = read_xsections("metadata/xSections.dat")
 
 xrdfs = pyxrootd.client.FileSystem(fnaleos)
 
