@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function, division
 from collections import defaultdict, OrderedDict
+import warnings
 import concurrent.futures
 import gzip
 import pickle
@@ -17,6 +18,7 @@ with open("metadata/datadef.json") as fin:
 
 extractor = lookup_tools.extractor()
 extractor.add_weight_sets(["* * correction_files/n2ddt_transform_2017MC.root"])
+extractor.add_weight_sets(["* * correction_files/TriggerEfficiencies_Run2017_noPS.root"])
 extractor.finalize()
 evaluator = extractor.make_evaluator()
 n2ddt_rho_pt = evaluator[b"Rho2D"]
@@ -33,9 +35,33 @@ def msd_weight(pt, eta):
     weight = np.where(np.abs(eta)<1.3, cenweight, forweight)
     return weight
 
+
+with gzip.open("pileup_mc.pkl.gz", "rb") as fin:
+    pileup_corr = pickle.load(fin)
+
+with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Collisions17_withVar.root") as fin:
+    data_pu = fin["pileup"].values
+    for k in pileup_corr.keys():
+        mc_pu = pileup_corr[k]
+        corr = (data_pu / np.maximum(mc_pu, 1)) / (data_pu.sum() / mc_pu.sum())
+        corr[mc_pu==0.] = 1.
+        pileup_corr[k] = lookup_tools.dense_lookup.dense_lookup(corr, fin["pileup"].edges)
+
+
+with uproot.open("correction_files/TriggerEfficiencies_Run2017_noPS.root") as fin:
+    denom = fin["h_runBtoF_pass_Mu50"]
+    num = fin["h_runBtoF_pass_Main"]
+    eff = num.values/np.maximum(denom.values, 1)
+    msd_bins, pt_bins = num.edges
+    # Cut pt < 200
+    pt_bins = pt_bins[8:]
+    # ROOT is insane.. the array shape is [y,x]
+    eff = eff[8:,:]
+    jetTriggerEff = lookup_tools.dense_lookup.dense_lookup(eff, (msd_bins, pt_bins))
+
+
 # [pb]
 dataset_xs = {k: v['xs'] for k,v in datadef.items()}
-
 lumi = 1000.  # [1/pb]
 
 dataset = hist.Cat("dataset", "Primary dataset")
@@ -64,9 +90,12 @@ n2ddt = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", 20, -0.25, 0.25)
 n2ddt_coarse = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", [-0.1, 0.])
 
 hists = {}
+hists['sumw'] = hist.Hist("sumw", dataset, hist.Bin("sumw", "Weight value", [0.]))
 hists['hjetpt'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
-hists['htagtensor'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, n2ddt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
+hists['hjetpt_SR'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
+#hists['htagtensor'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, n2ddt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
 hists['hsculpt'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, n2ddt, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
+hists['hsculpt_SR'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
 
 branches = [
     "AK8Puppijet0_pt",
@@ -77,6 +106,16 @@ branches = [
     "AK8Puppijet0_deepdoublec",
     "AK8Puppijet0_deepdoublecvb",
     "AK8Puppijet0_N2sdb1",
+    "AK8Puppijet0_isTightVJet",
+    "nAK4PuppijetsPt30dR08_0",
+    "npu",
+    "scale1fb",
+    "kfactorEWK",
+    "kfactorQCD",
+    "neleLoose",
+    "nmuLoose",
+    "ntau",
+    "pfmet",
 ]
 
 tstart = time.time()
@@ -91,13 +130,41 @@ def processfile(dataset, file):
     # This will just fill some NaN bins in the histogram, which is fine
     tree = uproot.open(file)["Events"]
     arrays = tree.arrays(branches, namedecode='ascii')
+
+    # jet |eta|<2.5 sometimes gives no events
+    # or other cuts in: https://github.com/DAZSLE/BaconAnalyzer/blob/102x/Analyzer/src/VJetLoader.cc#L270-L272
+    arrays["AK8Puppijet0_pt"] = np.maximum(0.001, arrays["AK8Puppijet0_pt"])
+    n2 = arrays["AK8Puppijet0_N2sdb1"]
+    n2[np.isnan(n2)] = np.inf
+    arrays["AK8Puppijet0_N2sdb1"] = n2
+
+    # we'll take care of cross section later, just check if +/-1
+    genW = np.sign(arrays["scale1fb"])
+    weight = genW
+    if dataset in pileup_corr:
+        weight *= pileup_corr[dataset](arrays["npu"])
+    if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
+        weight *= arrays["kfactorEWK"] * arrays["kfactorQCD"]
+    weight *= jetTriggerEff(arrays["AK8Puppijet0_msd"], arrays["AK8Puppijet0_pt"])
+    weight *= (arrays["AK8Puppijet0_pt"] > 200)
+
+    weight_SR = weight * ((arrays["neleLoose"]==0) & (arrays["nmuLoose"]==0) & (arrays["ntau"]==0))
+
     arrays["AK8Puppijet0_msd"] *= msd_weight(arrays["AK8Puppijet0_pt"], arrays["AK8Puppijet0_eta"])
-    arrays["jetrho"] = 2*np.log(arrays["AK8Puppijet0_msd"]/arrays["AK8Puppijet0_pt"])
+    arrays["jetrho"] = 2*np.log(np.maximum(1e-4, arrays["AK8Puppijet0_msd"]/arrays["AK8Puppijet0_pt"]))
     arrays["AK8Puppijet0_N2sdb1_ddt"] = arrays["AK8Puppijet0_N2sdb1"] - n2ddt_rho_pt(arrays["jetrho"], arrays["AK8Puppijet0_pt"])
+    weight_SR *= (arrays["pfmet"] < 140.)
+    weight_SR *= (arrays["AK8Puppijet0_N2sdb1_ddt"] < 0) & (arrays["AK8Puppijet0_isTightVJet"]!=0)
+
     hout = {}
     for k in hists.keys():
         h = hists[k].copy(content=False)
-        h.fill(dataset=dataset, **arrays)
+        if k == 'sumw':
+            h.fill(dataset=dataset, sumw=genW)
+        elif '_SR' in k:
+            h.fill(dataset=dataset, **arrays, weight=weight_SR)
+        else:
+            h.fill(dataset=dataset, **arrays, weight=weight)
         hout[k] = h
     return dataset, tree.numentries, hout
 
@@ -131,7 +198,14 @@ with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
         for job in futures: job.cancel()
         raise
 
-scale = dict((ds, lumi * dataset_xs[ds] / nevents[ds]) for ds in nevents.keys())
+
+sumw = hists.pop('sumw')
+scale = {}
+for ds in nevents.keys():
+    ds_sumw = sumw.values(overflow='all')[(ds,)]
+    print(ds, nevents[ds], ds_sumw)
+    scale[ds] = lumi*dataset_xs[ds] / (ds_sumw[1]-ds_sumw[0])
+
 for h in hists.values(): h.scale(scale, axis="dataset")
 
 dt = time.time() - tstart
