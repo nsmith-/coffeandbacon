@@ -66,9 +66,9 @@ lumi = 1000.  # [1/pb]
 
 dataset = hist.Cat("dataset", "Primary dataset")
 
-gencat = hist.Bin("AK8Puppijet0_isHadronicV", "Matched", 4, 0., 4)
+gencat = hist.Bin("AK8Puppijet0_isHadronicV", "Matched", [0,1,2,3,9,10,11])
 # one can relabel intervals, although process mapping obviates this
-titles = ["QCD", "V(light) matched", "V(c) matched", "V(b) matched"]
+titles = ["QCD", "V(light) matched", "V(c) matched", "V(b) matched", "Top W(ud)+b", "Top W(cs)+b"]
 for i,v in enumerate(gencat.identifiers()):
     setattr(v, 'label', titles[i])
 
@@ -86,16 +86,21 @@ doublec_coarse = [0.87, 0.84, 0.83, 0.79, 0.69, 0.58]
 doublec_coarse = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", doublec_coarse[::-1])
 doublecvb_coarse = [0.93, 0.91, 0.86, 0.76, 0.6, 0.17, 0.12]
 doublecvb_coarse = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", doublecvb_coarse[::-1])
-n2ddt = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", 20, -0.25, 0.25)
-n2ddt_coarse = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", [-0.1, 0.])
+n2ddt_coarse = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", [0.])
+
 
 hists = {}
 hists['sumw'] = hist.Hist("sumw", dataset, hist.Bin("sumw", "Weight value", [0.]))
 hists['hjetpt'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
 hists['hjetpt_SR'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
 #hists['htagtensor'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, n2ddt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
-hists['hsculpt'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, n2ddt, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
+hists['hsculpt'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
 hists['hsculpt_SR'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
+
+hists['pfmet_nminus1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
+hists['opposite_ak8_n3sdb1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0, 4))
+hists['opposite_ak8_tau32_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 4))
+hists['opposite_ak4_leadingDeepCSV_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
 
 branches = [
     "AK8Puppijet0_pt",
@@ -116,6 +121,19 @@ branches = [
     "nmuLoose",
     "ntau",
     "pfmet",
+    "AK8Puppijet0_phi",
+    "AK8Puppijet1_phi",
+    "AK8Puppijet1_e4_v2_sdb1",
+    "AK8Puppijet1_e3_v1_sdb1",
+    "AK8Puppijet1_tau32",
+    "AK4Puppijet0_dPhi08",
+    "AK4Puppijet1_dPhi08",
+    "AK4Puppijet2_dPhi08",
+    "AK4Puppijet3_dPhi08",
+    "AK4Puppijet0_deepcsvb",
+    "AK4Puppijet1_deepcsvb",
+    "AK4Puppijet2_deepcsvb",
+    "AK4Puppijet3_deepcsvb",
 ]
 
 tstart = time.time()
@@ -124,6 +142,9 @@ tstart = time.time()
 for h in hists.values(): h.clear()
 nevents = defaultdict(lambda: 0.)
 
+def clean(val, default):
+    val[np.isnan(val)|(val==-999.)] = default
+    return val
 
 def processfile(dataset, file):
     # Many 'invalid value encountered in ...' due to pt and msd sometimes being zero
@@ -133,10 +154,8 @@ def processfile(dataset, file):
 
     # jet |eta|<2.5 sometimes gives no events
     # or other cuts in: https://github.com/DAZSLE/BaconAnalyzer/blob/102x/Analyzer/src/VJetLoader.cc#L270-L272
-    arrays["AK8Puppijet0_pt"] = np.maximum(0.001, arrays["AK8Puppijet0_pt"])
-    n2 = arrays["AK8Puppijet0_N2sdb1"]
-    n2[np.isnan(n2)] = np.inf
-    arrays["AK8Puppijet0_N2sdb1"] = n2
+    arrays["AK8Puppijet0_pt"] = clean(arrays["AK8Puppijet0_pt"], 0.001)
+    arrays["AK8Puppijet0_N2sdb1"] = clean(arrays["AK8Puppijet0_N2sdb1"], np.inf)
 
     # we'll take care of cross section later, just check if +/-1
     genW = np.sign(arrays["scale1fb"])
@@ -153,16 +172,28 @@ def processfile(dataset, file):
     arrays["AK8Puppijet0_msd"] *= msd_weight(arrays["AK8Puppijet0_pt"], arrays["AK8Puppijet0_eta"])
     arrays["jetrho"] = 2*np.log(np.maximum(1e-4, arrays["AK8Puppijet0_msd"]/arrays["AK8Puppijet0_pt"]))
     arrays["AK8Puppijet0_N2sdb1_ddt"] = arrays["AK8Puppijet0_N2sdb1"] - n2ddt_rho_pt(arrays["jetrho"], arrays["AK8Puppijet0_pt"])
-    weight_SR *= (arrays["pfmet"] < 140.)
     weight_SR *= (arrays["AK8Puppijet0_N2sdb1_ddt"] < 0) & (arrays["AK8Puppijet0_isTightVJet"]!=0)
+    weight_metCut = (arrays["pfmet"] < 140.)
+
+    e4_v2_jet1 = clean(arrays['AK8Puppijet1_e4_v2_sdb1'], 1.)
+    e3_v1_jet1 = clean(arrays['AK8Puppijet1_e3_v1_sdb1'], -1.)
+    dphi = np.unwrap(arrays['AK8Puppijet1_phi'] - arrays['AK8Puppijet0_phi'])
+    arrays['opposite_ak8_n3sdb1'] = np.where(np.abs(dphi) > np.pi/2., e4_v2_jet1/np.maximum(1e-4, e3_v1_jet1)**2, np.inf)
+    arrays['opposite_ak8_tau32'] = np.where(np.abs(dphi) > np.pi/2., arrays['AK8Puppijet1_tau32'], np.inf)
+    dphi04 = np.column_stack(arrays['AK4Puppijet%d_dPhi08' % i] for i in range(4))
+    btag04 = np.column_stack(arrays['AK4Puppijet%d_deepcsvb' % i] for i in range(4))
+    btag04[np.abs(dphi04)<np.pi/2] = -np.inf
+    arrays['opposite_ak4_leadingDeepCSV'] = np.max(btag04, axis=1)
 
     hout = {}
     for k in hists.keys():
         h = hists[k].copy(content=False)
         if k == 'sumw':
             h.fill(dataset=dataset, sumw=genW)
-        elif '_SR' in k:
+        elif k == 'pfmet_nminus1_SR':
             h.fill(dataset=dataset, **arrays, weight=weight_SR)
+        elif '_SR' in k:
+            h.fill(dataset=dataset, **arrays, weight=weight_SR*weight_metCut)
         else:
             h.fill(dataset=dataset, **arrays, weight=weight)
         hout[k] = h
