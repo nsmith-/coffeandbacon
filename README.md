@@ -8,6 +8,7 @@ Often, you'll need an ssh tunnel, which can be accomplished via, e.g. `ssh -L $P
 
 # Using a docker container
 The docker container can run both uproot and striped jobs (although xrootd has not been tested yet.)
+You probably want to run it on your laptop.  For striped jobs, you will also need to VPN to the fermilab network.
 To run, execute
 ```bash
 ./run_container.sh
