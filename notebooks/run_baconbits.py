@@ -98,8 +98,9 @@ hists['hsculpt'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_
 hists['hsculpt_SR'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
 
 hists['pfmet_nminus1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
-hists['opposite_ak8_n3sdb1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0, 4))
-hists['opposite_ak8_tau32_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 4))
+hists['opposite_ak8_n3sdb1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0.5, 3))
+hists['opposite_ak8_tau32_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 1))
+hists['opposite_ak8_msd_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_msd", r"Jet $\m_{sd}$", 40, 50, 200))
 hists['opposite_ak4_leadingDeepCSV_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
 
 branches = [
@@ -126,6 +127,7 @@ branches = [
     "AK8Puppijet1_e4_v2_sdb1",
     "AK8Puppijet1_e3_v1_sdb1",
     "AK8Puppijet1_tau32",
+    "AK8Puppijet1_msd",
     "AK4Puppijet0_dPhi08",
     "AK4Puppijet1_dPhi08",
     "AK4Puppijet2_dPhi08",
@@ -180,6 +182,7 @@ def processfile(dataset, file):
     dphi = np.unwrap(arrays['AK8Puppijet1_phi'] - arrays['AK8Puppijet0_phi'])
     arrays['opposite_ak8_n3sdb1'] = np.where(np.abs(dphi) > np.pi/2., e4_v2_jet1/np.maximum(1e-4, e3_v1_jet1)**2, np.inf)
     arrays['opposite_ak8_tau32'] = np.where(np.abs(dphi) > np.pi/2., arrays['AK8Puppijet1_tau32'], np.inf)
+    arrays['opposite_ak8_msd'] = np.where(np.abs(dphi) > np.pi/2., arrays['AK8Puppijet1_msd'], np.inf)
     dphi04 = np.column_stack(arrays['AK4Puppijet%d_dPhi08' % i] for i in range(4))
     btag04 = np.column_stack(arrays['AK4Puppijet%d_deepcsvb' % i] for i in range(4))
     btag04[np.abs(dphi04)<np.pi/2] = -np.inf
