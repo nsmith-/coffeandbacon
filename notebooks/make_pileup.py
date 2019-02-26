@@ -49,6 +49,6 @@ with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
         raise
 
 
-with gzip.open("pileup_mc.pkl.gz", "wb") as fout:
+with gzip.open("correction_files/pileup_mc.pkl.gz", "wb") as fout:
     pickle.dump(pileup_mc, fout)
 
