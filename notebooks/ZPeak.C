@@ -33,7 +33,7 @@ void ZPeak::Loop(TString dataset)
 //    fChain->GetEntry(jentry);       //read all branches
 //by  b_branchname->GetEntry(ientry); //read only this branch
    if (fChain == 0) return;
-   Long64_t nentries = fChain->GetEntriesFast();
+   Long64_t nentries = fChain->GetEntries();
 
    bool isRealData = dataset.Contains("DoubleMuon") | dataset.Contains("DoubleEG");
    std::cout << "Processing " << dataset << ", real=" << isRealData << ", nEntries=" << nentries << std::endl;

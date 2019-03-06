@@ -1,4 +1,6 @@
 void run(void) {
+  // Run using
+  // $ time root -l -q -b -e ".L ZPeak.C+" -e ".x run.cc"
 
   TChain* chain;
   ZPeak* processor;
