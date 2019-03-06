@@ -2,3 +2,5 @@
 *.pyc
 *.root
 fnal-column-analysis-tools
+*_C.*
+*.pcm
