@@ -294,9 +294,7 @@ VBFHToGG_M125_13TeV_amcatnlo_pythia8                    3.748*2.28e-03
 VHToGG_M125_13TeV_amcatnloFXFX_madspin_pythia8          2.2496*2.28e-03 
 ttHJetToGG_M125_13TeV_amcatnloFXFX_madspin_pythia8      0.5085*2.28e-03 
 bbHToGG_M-125_4FS_yb2_13TeV_amcatnlo                    0.4880*2.28e-03*(0.3909/(0.3909-0.03293))
-bbHToGG_M-125_4FS_ybyt_13TeV_amcatnlo                   0.4880*2.28e-03*(-0.03293/(0.3909-0.03293))
 bbHToBB_M_125_4FS_yb2_13TeV_amcatnlo                    0.4880*5.824E-01*(0.3909/(0.3909-0.03293))
-bbHToBB_M_125_4FS_ybyt_13TeV_amcatnlo			0.4880*5.824E-01*(-0.03293/(0.3909-0.03293))
 DiPhotonJetsBox_M40_80-Sherpa                           299.3
 DiPhotonJets_MGG-80toInf_13TeV_amcatnloFXFX_pythia8     135.1
 ttHToGG_M125_13TeV_powheg_pythia8                       0.5071*2.28e-03 

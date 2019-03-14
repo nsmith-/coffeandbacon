@@ -5,6 +5,7 @@ import warnings
 import concurrent.futures
 import gzip
 import pickle
+import cloudpickle
 import json
 import time
 import numexpr
@@ -25,58 +26,13 @@ def _read(self, chunkindex):
 uproot.source.xrootd.XRootDSource._read_real = uproot.source.xrootd.XRootDSource._read
 uproot.source.xrootd.XRootDSource._read = _read
 
-extractor = lookup_tools.extractor()
-extractor.add_weight_sets(["* * correction_files/n2ddt_transform_2017MC.root"])
-extractor.add_weight_sets(["* * correction_files/TriggerEfficiencies_Run2017_noPS.root"])
-extractor.finalize()
-evaluator = extractor.make_evaluator()
-n2ddt_rho_pt = evaluator[b"Rho2D"]
-
-gpar = np.array([1.00626, -1.06161, 0.0799900, 1.20454])
-cpar = np.array([1.09302, -0.000150068, 3.44866e-07, -2.68100e-10, 8.67440e-14, -1.00114e-17])
-fpar = np.array([1.27212, -0.000571640, 8.37289e-07, -5.20433e-10, 1.45375e-13, -1.50389e-17])
-
-def msd_weight(pt, eta):
-    genw = gpar[0] + gpar[1]*np.power(pt*gpar[2], -gpar[3])
-    ptpow = np.power.outer(pt, np.arange(cpar.size))
-    cenweight = np.dot(ptpow, cpar)
-    forweight = np.dot(ptpow, fpar)
-    weight = np.where(np.abs(eta)<1.3, cenweight, forweight)
-    return weight
+with gzip.open("corrections.cpkl.gz", "rb") as fin:
+    corrections = cloudpickle.load(fin)
 
 
-with gzip.open("correction_files/pileup_mc.pkl.gz", "rb") as fin:
-    pileup_corr = pickle.load(fin)
-
-with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Collisions17_withVar.root") as fin:
-    data_pu = fin["pileup"].values
-    for k in pileup_corr.keys():
-        mc_pu = pileup_corr[k]
-        corr = (data_pu / np.maximum(mc_pu, 1)) / (data_pu.sum() / mc_pu.sum())
-        corr[mc_pu==0.] = 1.
-        pileup_corr[k] = lookup_tools.dense_lookup.dense_lookup(corr, fin["pileup"].edges)
-
-
-with uproot.open("correction_files/TriggerEfficiencies_Run2017_noPS.root") as fin:
-    denom = fin["h_runBtoF_pass_Mu50"]
-    num = fin["h_runBtoF_pass_Main"]
-    eff = num.values/np.maximum(denom.values, 1)
-    msd_bins, pt_bins = num.edges
-    # Cut pt < 200
-    pt_bins = pt_bins[8:]
-    # ROOT is insane.. the array shape is [y,x]
-    eff = eff[8:,:]
-    jetTriggerEff = lookup_tools.dense_lookup.dense_lookup(eff, (msd_bins, pt_bins))
-
-
+# axis definitions
 dataset = hist.Cat("dataset", "Primary dataset")
-
 gencat = hist.Bin("AK8Puppijet0_isHadronicV", "Matched", [0,1,2,3,9,10,11])
-# one can relabel intervals, although process mapping obviates this
-titles = ["QCD", "V(light) matched", "V(c) matched", "V(b) matched", "Top W(ud)+b", "Top W(cs)+b"]
-for i,v in enumerate(gencat.identifiers()):
-    setattr(v, 'label', titles[i])
-
 jetpt = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 500, 550, 600, 675, 800, 1000])
 jetpt_coarse = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 800])
 jetmass = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", 23, 40, 201)
@@ -150,6 +106,7 @@ def clean(val, default):
     val[np.isnan(val)|(val==-999.)] = default
     return val
 
+
 def processfile(dataset, file):
     # Many 'invalid value encountered in ...' due to pt and msd sometimes being zero
     # This will just fill some NaN bins in the histogram, which is fine
@@ -173,18 +130,18 @@ def processfile(dataset, file):
     # we'll take care of cross section later, just check if +/-1
     genW = np.sign(arrays["scale1fb"])
     weight = genW
-    if dataset in pileup_corr:
-        weight *= pileup_corr[dataset](arrays["npu"])
+    if dataset in corrections['2017_pileupweight_dataset']:
+        weight *= corrections['2017_pileupweight_dataset'][dataset](arrays["npu"])
     if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
         weight *= arrays["kfactorEWK"] * arrays["kfactorQCD"]
-    weight *= jetTriggerEff(arrays["AK8Puppijet0_msd"], arrays["AK8Puppijet0_pt"])
+    weight *= corrections['2017_trigweight_msd_pt'](arrays["AK8Puppijet0_msd"], arrays["AK8Puppijet0_pt"])
     weight *= (arrays["AK8Puppijet0_pt"] > 200)
 
     weight_SR = weight * ((arrays["neleLoose"]==0) & (arrays["nmuLoose"]==0) & (arrays["ntau"]==0))
 
-    arrays["AK8Puppijet0_msd"] *= msd_weight(arrays["AK8Puppijet0_pt"], arrays["AK8Puppijet0_eta"])
+    arrays["AK8Puppijet0_msd"] *= corrections['msdweight'](arrays["AK8Puppijet0_pt"], arrays["AK8Puppijet0_eta"])
     arrays["jetrho"] = 2*np.log(np.maximum(1e-4, arrays["AK8Puppijet0_msd"]/arrays["AK8Puppijet0_pt"]))
-    arrays["AK8Puppijet0_N2sdb1_ddt"] = arrays["AK8Puppijet0_N2sdb1"] - n2ddt_rho_pt(arrays["jetrho"], arrays["AK8Puppijet0_pt"])
+    arrays["AK8Puppijet0_N2sdb1_ddt"] = arrays["AK8Puppijet0_N2sdb1"] - corrections['2017_n2ddt_rho_pt'](arrays["jetrho"], arrays["AK8Puppijet0_pt"])
     weight_SR *= (arrays["AK8Puppijet0_N2sdb1_ddt"] < 0) & (arrays["AK8Puppijet0_isTightVJet"]!=0)
     weight_metCut = (arrays["pfmet"] < 140.)
 
@@ -194,8 +151,8 @@ def processfile(dataset, file):
     arrays['opposite_ak8_n3sdb1'] = np.where(np.abs(dphi) > np.pi/2., e4_v2_jet1/np.maximum(1e-4, e3_v1_jet1)**2, np.inf)
     arrays['opposite_ak8_tau32'] = np.where(np.abs(dphi) > np.pi/2., arrays['AK8Puppijet1_tau32'], np.inf)
     arrays['opposite_ak8_msd'] = np.where(np.abs(dphi) > np.pi/2., arrays['AK8Puppijet1_msd'], np.inf)
-    dphi04 = np.column_stack(arrays['AK4Puppijet%d_dPhi08' % i] for i in range(4))
-    btag04 = np.column_stack(arrays['AK4Puppijet%d_deepcsvb' % i] for i in range(4))
+    dphi04 = np.column_stack([arrays['AK4Puppijet%d_dPhi08' % i] for i in range(4)])
+    btag04 = np.column_stack([arrays['AK4Puppijet%d_deepcsvb' % i] for i in range(4)])
     btag04[np.abs(dphi04)<np.pi/2] = -np.inf
     arrays['opposite_ak4_leadingDeepCSV'] = np.max(btag04, axis=1)
 
@@ -216,8 +173,11 @@ def processfile(dataset, file):
         hout[k] = h
 
     toc = time.time()
-    return dataset, tree.numentries, hout, fin.source.bytesread, toc-tic
+    bytesread = fin.source.bytesread if isinstance(fin.source, uproot.source.xrootd.XRootDSource) else 0
+    return dataset, tree.numentries, hout, bytesread, toc-tic
 
+
+test = True
 
 tstart = time.time()
 for h in hists.values(): h.clear()
@@ -225,47 +185,60 @@ nevents = defaultdict(lambda: 0.)
 nbytes = defaultdict(lambda: 0.)
 sumworktime = 0.
 
-nworkers = 10
-#fileslice = slice(None, 5)
-fileslice = slice(None)
-#with concurrent.futures.ThreadPoolExecutor(max_workers=nworkers) as executor:
-with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
-    futures = set()
-    samples = samplefiles["Hbb_create_2017"]
-    for datasets in samples.values():
-        if isinstance(datasets, list):
-            # raw data, no norm
-            dataset = "data_obs"
-            futures.update(executor.submit(processfile, dataset, file) for file in datasets)
-        elif isinstance(datasets, dict):
-            for dataset, files in datasets.items():
-                futures.update(executor.submit(processfile, dataset, file) for file in files)
-    try:
-        total = len(futures)
-        processed = 0
-        while len(futures) > 0:
-            finished = set(job for job in futures if job.done())
-            for job in finished:
-                dataset, nentries, hout, nbytesds, dt = job.result()
-                nevents[dataset] += nentries
-                nbytes[dataset] += nbytesds
-                sumworktime += dt
-                for k in hout.keys():
-                    hists[k] += hout[k]
-                processed += 1
-                print("Processing: done with % 4d / % 4d files" % (processed, total))
-            futures -= finished
-            del finished
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Ok quitter")
-        for job in futures:
-            job.cancel()
-        print("Killed pending jobs")
-        print("Running jobs:", sum(1 for j in futures if j.running()))
-    except:
-        for job in futures: job.cancel()
-        raise
+if test:
+    nworkers = 1
+    dataset = "TTToHadronic_TuneCP5_13TeV_powheg_pythia8"
+    # root://cmseos.fnal.gov//eos/uscms/store/user/lpcbacon/dazsle/zprimebits-v15.01/skim/TTToHadronic_TuneCP5_13TeV_powheg_pythia8_0.root
+    file = "TTToHadronic_TuneCP5_13TeV_powheg_pythia8_0.root"
+    _, nentries, hout, nbytesds, dt = processfile(dataset, file)
+    nevents[dataset] += nentries
+    nbytes[dataset] += nbytesds
+    sumworktime += dt
+    for k in hout.keys():
+        hists[k] += hout[k]
+    print("Done processing test file")
+else:
+    nworkers = 10
+    #fileslice = slice(None, 5)
+    fileslice = slice(None)
+    #with concurrent.futures.ThreadPoolExecutor(max_workers=nworkers) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
+        futures = set()
+        samples = samplefiles["Hbb_create_2017"]
+        for datasets in samples.values():
+            if isinstance(datasets, list):
+                # raw data, no norm
+                dataset = "data_obs"
+                futures.update(executor.submit(processfile, dataset, file) for file in datasets)
+            elif isinstance(datasets, dict):
+                for dataset, files in datasets.items():
+                    futures.update(executor.submit(processfile, dataset, file) for file in files)
+        try:
+            total = len(futures)
+            processed = 0
+            while len(futures) > 0:
+                finished = set(job for job in futures if job.done())
+                for job in finished:
+                    dataset, nentries, hout, nbytesds, dt = job.result()
+                    nevents[dataset] += nentries
+                    nbytes[dataset] += nbytesds
+                    sumworktime += dt
+                    for k in hout.keys():
+                        hists[k] += hout[k]
+                    processed += 1
+                    print("Processing: done with % 4d / % 4d files" % (processed, total))
+                futures -= finished
+                del finished
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("Ok quitter")
+            for job in futures:
+                job.cancel()
+            print("Killed pending jobs")
+            print("Running jobs:", sum(1 for j in futures if j.running()))
+        except:
+            for job in futures: job.cancel()
+            raise
 
 
 def read_xsections(filename):
