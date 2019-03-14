@@ -13,8 +13,17 @@ import uproot
 import numpy as np
 from fnal_column_analysis_tools import hist, lookup_tools
 
-with open("metadata/datadef.json") as fin:
-    datadef = json.load(fin)
+with open("metadata/samplefiles.json") as fin:
+    samplefiles = json.load(fin)
+
+
+# instrument xrootd source
+def _read(self, chunkindex):
+    self.bytesread = getattr(self, 'bytesread', 0) + self._chunkbytes
+    return self._read_real(chunkindex)
+
+uproot.source.xrootd.XRootDSource._read_real = uproot.source.xrootd.XRootDSource._read
+uproot.source.xrootd.XRootDSource._read = _read
 
 extractor = lookup_tools.extractor()
 extractor.add_weight_sets(["* * correction_files/n2ddt_transform_2017MC.root"])
@@ -59,10 +68,6 @@ with uproot.open("correction_files/TriggerEfficiencies_Run2017_noPS.root") as fi
     eff = eff[8:,:]
     jetTriggerEff = lookup_tools.dense_lookup.dense_lookup(eff, (msd_bins, pt_bins))
 
-
-# [pb]
-dataset_xs = {k: v['xs'] for k,v in datadef.items()}
-lumi = 1000.  # [1/pb]
 
 dataset = hist.Cat("dataset", "Primary dataset")
 
@@ -140,11 +145,6 @@ branches = [
     "AK4Puppijet3_deepcsvb",
 ]
 
-tstart = time.time()
-
-
-for h in hists.values(): h.clear()
-nevents = defaultdict(lambda: 0.)
 
 def clean(val, default):
     val[np.isnan(val)|(val==-999.)] = default
@@ -153,8 +153,17 @@ def clean(val, default):
 def processfile(dataset, file):
     # Many 'invalid value encountered in ...' due to pt and msd sometimes being zero
     # This will just fill some NaN bins in the histogram, which is fine
-    tree = uproot.open(file)["Events"]
+    isData = dataset=="data_obs"
+    fin = uproot.open(file)
+    skim_sumw = None
+    if "otree" in fin:
+        tree = fin["otree"]
+        if not isData:
+            skim_sumw  = fin["SumWeights"].values[0]
+    else:
+        tree = fin["Events"]
     arrays = tree.arrays(branches, namedecode='ascii')
+    tic = time.time()
 
     # jet |eta|<2.5 sometimes gives no events
     # or other cuts in: https://github.com/DAZSLE/BaconAnalyzer/blob/102x/Analyzer/src/VJetLoader.cc#L270-L272
@@ -194,7 +203,10 @@ def processfile(dataset, file):
     for k in hists.keys():
         h = hists[k].copy(content=False)
         if k == 'sumw':
-            h.fill(dataset=dataset, sumw=genW)
+            if skim_sumw is None:
+                h.fill(dataset=dataset, sumw=genW)
+            else:
+                h.fill(dataset=dataset, sumw=1, weight=skim_sumw)
         elif k == 'pfmet_nminus1_SR':
             h.fill(dataset=dataset, **arrays, weight=weight_SR)
         elif '_SR' in k:
@@ -202,8 +214,16 @@ def processfile(dataset, file):
         else:
             h.fill(dataset=dataset, **arrays, weight=weight)
         hout[k] = h
-    return dataset, tree.numentries, hout
 
+    toc = time.time()
+    return dataset, tree.numentries, hout, fin.source.bytesread, toc-tic
+
+
+tstart = time.time()
+for h in hists.values(): h.clear()
+nevents = defaultdict(lambda: 0.)
+nbytes = defaultdict(lambda: 0.)
+sumworktime = 0.
 
 nworkers = 10
 #fileslice = slice(None, 5)
@@ -211,44 +231,83 @@ fileslice = slice(None)
 #with concurrent.futures.ThreadPoolExecutor(max_workers=nworkers) as executor:
 with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
     futures = set()
-    for dataset, info in datadef.items():
-        futures.update(executor.submit(processfile, dataset, file) for file in info['files'][fileslice])
+    samples = samplefiles["Hbb_create_2017"]
+    for datasets in samples.values():
+        if isinstance(datasets, list):
+            # raw data, no norm
+            dataset = "data_obs"
+            futures.update(executor.submit(processfile, dataset, file) for file in datasets)
+        elif isinstance(datasets, dict):
+            for dataset, files in datasets.items():
+                futures.update(executor.submit(processfile, dataset, file) for file in files)
     try:
         total = len(futures)
         processed = 0
         while len(futures) > 0:
             finished = set(job for job in futures if job.done())
             for job in finished:
-                dataset, nentries, hout = job.result()
+                dataset, nentries, hout, nbytesds, dt = job.result()
                 nevents[dataset] += nentries
+                nbytes[dataset] += nbytesds
+                sumworktime += dt
                 for k in hout.keys():
                     hists[k] += hout[k]
                 processed += 1
                 print("Processing: done with % 4d / % 4d files" % (processed, total))
             futures -= finished
-        del finished
+            del finished
+            time.sleep(1)
     except KeyboardInterrupt:
         print("Ok quitter")
-        for job in futures: job.cancel()
+        for job in futures:
+            job.cancel()
+        print("Killed pending jobs")
+        print("Running jobs:", sum(1 for j in futures if j.running()))
     except:
         for job in futures: job.cancel()
         raise
 
+
+def read_xsections(filename):
+    out = {}
+    with open(filename) as fin:
+        for line in fin:
+            line = line.strip()
+            if len(line) == 0 or line[0] == '#':
+                continue
+            dataset, xsexpr, *_ = line.split()
+            try:
+                xs = float(numexpr.evaluate(xsexpr))
+            except:
+                print("numexpr evaluation failed for line: %s" % line)
+                raise
+            if xs <= 0:
+                warnings.warn("Cross section is <= 0 in line: %s" % line, RuntimeWarning)
+            out[dataset] = xs
+    return out
+
+
+# curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/DDB/analysis/ggH/xSections.dat
+xsections = read_xsections("metadata/xSections.dat")
+lumi = 41100  # [1/pb]
 
 sumw = hists.pop('sumw')
 scale = {}
 for ds in nevents.keys():
     ds_sumw = sumw.values(overflow='all')[(ds,)]
     print(ds, nevents[ds], ds_sumw)
-    scale[ds] = lumi*dataset_xs[ds] / (ds_sumw[1]-ds_sumw[0])
+    if ds != "data_obs":
+        scale[ds] = lumi*xsections[ds] / (ds_sumw[1]-ds_sumw[0])
 
 for h in hists.values(): h.scale(scale, axis="dataset")
 
 dt = time.time() - tstart
 print("%.2f us*cpu/event" % (1e6*dt*nworkers/sum(nevents.values()), ))
+print("%.2f us*cpu/event work time" % (1e6*sumworktime/sum(nevents.values()), ))
 nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in hists.values())
 nfilled = sum(sum(np.sum(arr>0) for arr in h._sumw.values()) for h in hists.values())
 print("Processed %.1fM events" % (sum(nevents.values())/1e6, ))
+print("Read %.1fM bytes" % (sum(nbytes.values())/1e6, ))
 print("Filled %.1fM bins" % (nbins/1e6, ))
 print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
 
