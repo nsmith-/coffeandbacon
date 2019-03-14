@@ -1,4 +1,4 @@
 .ipynb_checkpoints
 *.pyc
-*.root
+notebooks/data
 fnal-column-analysis-tools
