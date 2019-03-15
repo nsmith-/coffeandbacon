@@ -9,15 +9,19 @@ import cloudpickle
 import json
 import time
 import numexpr
+import pprint
 
 import uproot
 import awkward
 import numpy as np
-from fnal_column_analysis_tools import hist, lookup_tools
+from fnal_column_analysis_tools import hist, lookup_tools, processor
+
+from pyinstrument import Profiler
+profiler = Profiler()
+profiler.start()
 
 with open("metadata/samplefiles.json") as fin:
     samplefiles = json.load(fin)
-
 
 # instrument xrootd source
 def _read(self, chunkindex):
@@ -33,22 +37,21 @@ with gzip.open("corrections.cpkl.gz", "rb") as fin:
 
 # axis definitions
 dataset = hist.Cat("dataset", "Primary dataset")
-gencat = hist.Bin("AK8Puppijet0_isHadronicV", "Matched", [0,1,2,3,9,10,11])
-jetpt = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 500, 550, 600, 675, 800, 1000])
-jetpt_coarse = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 800])
-jetmass = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", 23, 40, 201)
-jetmass_coarse = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", [40, 100, 140, 200])
+gencat = hist.Bin("AK8Puppijet0_isHadronicV", "V matching index", [0,1,2,3,9,10,11])
+jetpt = hist.Bin("AK8Puppijet0_pt", r"Jet $p_T$", [450, 500, 550, 600, 675, 800, 1200])
+jetmass = hist.Bin("AK8Puppijet0_msd", r"Jet $m_{sd}$", 23, 40, 201)
+jetpt_coarse = hist.Bin("AK8Puppijet0_pt", r"Jet $p_T$", [450, 1200])
+jetmass_coarse = hist.Bin("AK8Puppijet0_msd", r"Jet $m_{sd}$", [40, 103, 152, 201])
 jetrho = hist.Bin("ak8jet_rho", r"Jet $\rho$", 13, -6, -2.1)
 doubleb = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", 20, 0., 1)
 doublec = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", 20, 0., 1.)
 doublecvb = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", 20, 0., 1.)
-doubleb_coarse = [1., 0.93, 0.92, 0.89, 0.85, 0.7]
+doubleb_coarse = [1., 0.9, 0.89, 0.85, 0.7]
 doubleb_coarse = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", doubleb_coarse[::-1])
-doublec_coarse = [0.87, 0.84, 0.83, 0.79, 0.69, 0.58]
+doublec_coarse = [0.87, 0.84, 0.83, 0.79, 0.69]
 doublec_coarse = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", doublec_coarse[::-1])
 doublecvb_coarse = [0.93, 0.91, 0.6, 0.2, 0.17]
 doublecvb_coarse = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", doublecvb_coarse[::-1])
-n2ddt_coarse = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", [0.])
 
 
 hists = {}
@@ -62,84 +65,10 @@ hists['opposite_ak8_msd_signalregion'] = hist.Hist("Events", dataset, gencat, je
 hists['opposite_ak4_leadingDeepCSV_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
 hists['njets_ak4_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("nAK4PuppijetsPt30", "Number AK4 Jets", 8, 0, 8))
 
-hists['nminus1_pfmet140_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
-
-
-class PackedSelection(object):
-    def __init__(self, dtype='uint64'):
-        self._dtype = np.dtype(dtype)
-        self._names = []
-        self._mask = None
-
-    def add(self, name, selection):
-        if isinstance(selection, np.ndarray) and selection.dtype == np.dtype('bool'):
-            if len(self._names) == 0:
-                self._mask = np.zeros(shape=selection.shape, dtype=self._dtype)
-            elif len(self._names) == 64:
-                raise RuntimeError("Exhausted all slots for %r, consider a larger dtype or fewer selections" % self._dtype)
-            elif self._mask.shape != selection.shape:
-                raise ValueError("New selection '%s' has different shape than existing ones (%r vs. %r)" % (name, selection.shape, self._mask.shape))
-            self._mask |= selection.astype(self._dtype) << len(self._names)
-            self._names.append(name)
-        else:
-            raise ValueError("PackedSelection only understands numpy boolean arrays, got %r" % selection)
-
-    def require(self, **names):
-        mask = 0
-        require = 0
-        for name, val in names.items():
-            if not isinstance(val, bool):
-                raise ValueError("Please use only booleans in PackedSelection.require(), received %r for %s" % (val, name))
-            idx = self._names.index(name)
-            mask |= 1<<idx
-            require |= int(val)<<idx
-        return (self._mask & mask) == require
-
-    def all(self, *names):
-        if len(names) == 1 and isinstance(names[0], collections.abc.Iterable):
-            names = names[0]
-        return self.require(**{name: True for name in names})
-
-
-class Weights(object):
-    def __init__(self, size):
-        self._weight = np.ones(size)
-        self._modifiers = {}
-        self._weightStats = {}
-
-    def add(self, name, weight, weightUp=None, weightDown=None, shift=False):
-        """
-            name: name of correction weight
-            weight: nominal weight
-            weightUp: weight with correction uncertainty shifted up
-            weightDown: weight with correction uncertainty shifted down (leave None if symmetric)
-            shift: if True, interpret weightUp and weightDown as a difference relative to the nominal value
-        """
-        self._weight *= weight
-        if weightUp is not None:
-            if shift:
-                weightUp += weight
-            weightUp[weight != 0.] /= weight[weight != 0.]
-            self._modifiers[name+'Up'] = weightUp
-        if weightDown is not None:
-            if shift:
-                weightDown = weight - weightDown
-            weightDown[weight != 0.] /= weight[weight != 0.]
-            self._modifiers[name+'Down'] = weightDown
-        self._weightStats[name] = {
-            'sumw': weight.sum(),
-            'sumw2': (weight**2).sum(),
-            'min': weight.min(),
-            'max': weight.max(),
-            'n': weight.size,
-        }
-
-    def weight(self, modifier=None):
-        if modifier is None:
-            return self._weight
-        elif 'Down' in modifier and modifier not in self._modifiers:
-            return self._weight / self._modifiers[modifier.replace('Down', 'Up')]
-        return self._weight * self._modifiers[modifier]
+hists['nminus1_pfmet_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
+hists['nminus1_n2ddtPass_signalregion'] = hist.Hist("Events", dataset, gencat, jetmass_coarse, doubleb_coarse, hist.Bin("ak8jet_n2ddt", r"Jet $N_{2,DDT}^{\beta=1}$", 40, -1, 1))
+hists['templates_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Cat("systematic", "Systematic"), jetpt, jetmass, doubleb_coarse)
+hists['templates_muoncontrol'] = hist.Hist("Events", dataset, gencat, hist.Cat("systematic", "Systematic"), jetpt, jetmass, doubleb_coarse)
 
 
 def clean(df, val, default, positive=False):
@@ -208,7 +137,7 @@ def build_met_systematics(df):
 def process(df):
     isData = df['dataset'] == 'data_obs'
 
-    weights = Weights(df.size)
+    weights = processor.Weights(df.size)
 
     # we'll take care of cross section later, just check if +/-1
     if not isData:
@@ -258,11 +187,13 @@ def process(df):
     build_ak4_variables(df)
     build_met_systematics(df)
 
-    selection = PackedSelection()
+    selection = processor.PackedSelection()
     if isData:
         selection.add('trigger', df['triggerBits'] & corrections['2017_triggerMask'])
+        selection.add('mutrigger', (df['triggerBits']&1) & df['passJson'].astype('bool'))
     else:
         selection.add('trigger', np.ones(df.size, dtype='bool'))
+        selection.add('mutrigger', np.ones(df.size, dtype='bool'))
 
     selection.add('noLeptons', (df['neleLoose']==0) & (df['nmuLoose']==0) & (df['ntau']==0))
     selection.add('oneMuon', (df['neleLoose']==0) & (df['nmuLoose']==1) & (df['ntau']==0))
@@ -272,90 +203,68 @@ def process(df):
     selection.add('antiak4btagMediumOppHem', df['opposite_ak4_leadingDeepCSV'] < 0.4941)  # none pass
     selection.add('tightVjet', df['AK8Puppijet0_isTightVJet'] != 0)
     selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
-    selection.add('doublebtagPass', df['AK8Puppijet0_deepdoubleb'] > 0.9)
     selection.add('jetMass', df['AK8Puppijet0_msd'] > 40.)
 
     selection.add('jetKinematics', df['AK8Puppijet0_pt'] > 450.)
     selection.add('jetKinematicsMuonCR', df['AK8Puppijet0_pt'] > 400.)
-    selection.add('pfmet140', df['pfmet'] < 140.)
+    selection.add('pfmet', df['pfmet'] < 140.)
 
-    for syst in ['JESUp', 'JESDown', 'JERUp', 'JERDown']:
+    shiftSystematics = ['JESUp', 'JESDown', 'JERUp', 'JERDown']
+    shiftedQuantities = {'AK8Puppijet0_pt', 'pfmet'}
+    shiftedSelections = {'jetKinematics', 'jetKinematicsMuonCR', 'pfmet'}
+    for syst in shiftSystematics:
         selection.add('jetKinematics'+syst, df['AK8Puppijet0_pt_'+syst] > 450)
         selection.add('jetKinematicsMuonCR'+syst, df['AK8Puppijet0_pt_'+syst] > 400.)
-        selection.add('pfmet140'+syst, df['pfmet_'+syst] < 140.)
+        selection.add('pfmet'+syst, df['pfmet_'+syst] < 140.)
 
     regions = {}
-    regions['signalregion'] = {'trigger', 'n2ddtPass', 'noLeptons', 'jetKinematics', 'tightVjet', 'doublebtagPass', 'antiak4btagMediumOppHem'}
-    # TODO: mutrigger
-    regions['muoncontrol'] = {'n2ddtPass', 'oneMuon', 'jetKinematicsMuonCR', 'tightVjet', 'doublebtagPass', 'ak4btagMediumDR08', 'muonDphiAK8'}
+    regions['signalregion'] = {'trigger', 'n2ddtPass', 'noLeptons', 'jetKinematics', 'tightVjet', 'antiak4btagMediumOppHem'}
+    regions['muoncontrol'] = {'mutrigger', 'n2ddtPass', 'oneMuon', 'jetKinematicsMuonCR', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
 
-    print(weights._weightStats)
+    print("Weight statistics:")
+    pprint.pprint(weights._weightStats, indent=4)
+
     hout = {}
     for histname in hists.keys():
         h = hists[histname].copy(content=False)
         fields = {k: df[k] for k in h.fields if k in df}
+        region = [r for r in regions.keys() if r in histname]
+
         if histname == 'sumw':
             if 'skim_sumw' in df:
                 h.fill(dataset=dataset, sumw=1, weight=df['skim_sumw'])
             else:
-                h.fill(dataset=dataset, sumw=df['scale1fb'])
+                h.fill(dataset=dataset, sumw=np.sign(df['scale1fb']))
         elif 'nminus1' in histname:
             _, sel, region = histname.split('_')
             cut = regions[region] - {sel}
             weight = weights.weight() * selection.all(cut)
             h.fill(**fields, weight=weight)
-        # TODO: nested hists? search region mames in histname?
-        elif 'signalregion' in histname:
-            region = 'signalregion'
-            cut = regions[region]
-            weight = weights.weight() * selection.all(cut)
-            h.fill(**fields, weight=weight)
+        elif len(region) == 1:
+            region = region[0]
+            weight = weights.weight()
+            cut = selection.all(regions[region])
+            h.fill(systematic="", **fields, weight=weight*cut)
+            if 'systematic' in h.fields:
+                for syst in weights.variations:
+                    h.fill(systematic=syst, **fields, weight=weights.weight(syst)*cut)
+                for syst in shiftSystematics:
+                    cut = {s for s in regions[region] if s not in shiftedSelections}
+                    cut.update({s+syst for s in regions[region] if s in shiftedSelections})
+                    cut = selection.all(cut)
+                    for val in shiftedQuantities:
+                        fields[val] = df[val+'_'+syst]
+                    h.fill(systematic=syst, **fields, weight=weight*cut)
+        elif len(region) > 1:
+            raise ValueError("Histogram '%s' has a name matching multiple region definitions: %r" % (histname, region))
         else:
             weight = weights.weight()
             h.fill(**fields, weight=weight)
+
         hout[histname] = h
 
     return hout
 
-
-class DataFrame(collections.abc.MutableMapping):
-    def __init__(self, tree):
-        self._tree = tree
-        self._dict = {}
-        self._materialized = set()
-
-    def __delitem__(self, key):
-        del self._dict[key]
-
-    def __getitem__(self, key):
-        if key in self._dict:
-            return self._dict[key]
-        elif key in self._tree:
-            self._materialized.add(key)
-            self._dict[key] = self._tree[key].array()
-            return self._dict[key]
-        else:
-            raise KeyError(key)
-
-    def __iter__(self):
-        print('uh oh')
-        for item in self._dict:
-            self._materialized.add(item[0])
-            yield item
-
-    def __len__(self):
-        return len(self._dict)
-
-    def __setitem__(self, key, value):
-        self._dict[key] = value
-
-    @property
-    def materialized(self):
-        return self._materialized
-
-    @property
-    def size(self):
-        return self._tree.numentries
 
 
 def processfile(dataset, file):
@@ -368,7 +277,7 @@ def processfile(dataset, file):
     else:
         tree = fin['Events']
 
-    df = DataFrame(tree)
+    df = processor.DataFrame(tree)
     df['dataset'] = dataset
     df['skim_sumw'] = skim_sumw
     tic = time.time()
@@ -408,6 +317,7 @@ def collect(output):
     columns_accessed.update(output['columns'])
 
 
+# TODO: rip this out and into fnal_column_analysis_tools.processor
 if test:
     nworkers = 1
     testfiles = [
@@ -505,4 +415,8 @@ print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
 # Pickle is not very fast or memory efficient, will be replaced by something better soon
 with gzip.open("hists.pkl.gz", "wb") as fout:
     pickle.dump(hists, fout)
+
+profiler.stop()
+with open("run_baconbits.html", "w") as fout:
+    fout.write(profiler.output_html())
 
