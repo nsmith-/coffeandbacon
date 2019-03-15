@@ -34,10 +34,10 @@ with gzip.open("corrections.cpkl.gz", "rb") as fin:
 # axis definitions
 dataset = hist.Cat("dataset", "Primary dataset")
 gencat = hist.Bin("AK8Puppijet0_isHadronicV", "Matched", [0,1,2,3,9,10,11])
-jetpt = hist.Bin("ak8jet_pt", "Jet $p_T$", [450, 500, 550, 600, 675, 800, 1000])
-jetpt_coarse = hist.Bin("ak8jet_pt", "Jet $p_T$", [450, 800])
-jetmass = hist.Bin("ak8jet_msd", "Jet $m_{sd}$", 23, 40, 201)
-jetmass_coarse = hist.Bin("ak8jet_msd", "Jet $m_{sd}$", [40, 100, 140, 200])
+jetpt = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 500, 550, 600, 675, 800, 1000])
+jetpt_coarse = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 800])
+jetmass = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", 23, 40, 201)
+jetmass_coarse = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", [40, 100, 140, 200])
 jetrho = hist.Bin("ak8jet_rho", r"Jet $\rho$", 13, -6, -2.1)
 doubleb = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", 20, 0., 1)
 doublec = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", 20, 0., 1.)
@@ -53,15 +53,16 @@ n2ddt_coarse = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", [0.])
 
 hists = {}
 hists['sumw'] = hist.Hist("sumw", dataset, hist.Bin("sumw", "Weight value", [0.]))
-hists['hjetpt_SR'] = hist.Hist("Events", dataset, gencat, hist.Bin("ak8jet_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
-hists['hsculpt_SR'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
-hists['htagtensor_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
-hists['pfmet_nminus1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
-hists['opposite_ak8_n3sdb1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0.5, 3))
-hists['opposite_ak8_tau32_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 1))
-hists['opposite_ak8_msd_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_msd", r"Jet $\m_{sd}$", 40, 50, 200))
-hists['opposite_ak4_leadingDeepCSV_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
-hists['njets_ak4_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("nAK4PuppijetsPt30", "Number AK4 Jets", 8, 0, 8))
+hists['hjetpt_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
+hists['hsculpt_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
+hists['htagtensor_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
+hists['opposite_ak8_n3sdb1_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0.5, 3))
+hists['opposite_ak8_tau32_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 1))
+hists['opposite_ak8_msd_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_msd", r"Jet $\m_{sd}$", 40, 50, 200))
+hists['opposite_ak4_leadingDeepCSV_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
+hists['njets_ak4_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("nAK4PuppijetsPt30", "Number AK4 Jets", 8, 0, 8))
+
+hists['nminus1_pfmet140_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
 
 
 class PackedSelection(object):
@@ -103,15 +104,28 @@ class PackedSelection(object):
 class Weights(object):
     def __init__(self, size):
         self._weight = np.ones(size)
-        self._weightShift = {}
+        self._modifiers = {}
         self._weightStats = {}
 
-    def add(self, name, weight, weightUp=None, weightDown=None):
+    def add(self, name, weight, weightUp=None, weightDown=None, shift=False):
+        """
+            name: name of correction weight
+            weight: nominal weight
+            weightUp: weight with correction uncertainty shifted up
+            weightDown: weight with correction uncertainty shifted down (leave None if symmetric)
+            shift: if True, interpret weightUp and weightDown as a difference relative to the nominal value
+        """
         self._weight *= weight
         if weightUp is not None:
-            self._weightShift[name+'Up'] = weightUp/weight
+            if shift:
+                weightUp += weight
+            weightUp[weight != 0.] /= weight[weight != 0.]
+            self._modifiers[name+'Up'] = weightUp
         if weightDown is not None:
-            self._weightShift[name+'Down'] = weightDown/weight
+            if shift:
+                weightDown = weight - weightDown
+            weightDown[weight != 0.] /= weight[weight != 0.]
+            self._modifiers[name+'Down'] = weightDown
         self._weightStats[name] = {
             'sumw': weight.sum(),
             'sumw2': (weight**2).sum(),
@@ -120,35 +134,81 @@ class Weights(object):
             'n': weight.size,
         }
 
-    def weight(self, shift=None):
-        if shift is None:
+    def weight(self, modifier=None):
+        if modifier is None:
             return self._weight
-        return self._weight * self._weightShift[shift]
+        elif 'Down' in modifier and modifier not in self._modifiers:
+            return self._weight / self._modifiers[modifier.replace('Down', 'Up')]
+        return self._weight * self._modifiers[modifier]
 
 
-def clean(val, default):
-    val[np.isnan(val)|(val==-999.)] = default
-    return val
+def clean(df, val, default, positive=False):
+    if positive:
+        df[val][np.isnan(df[val])|(df[val]<=0.)] = default
+    else:
+        df[val][np.isnan(df[val])|(df[val]==-999.)] = default
 
 
-def oppositeside_maxak4_btag(df):
-    dphi04 = np.column_stack([df['AK4Puppijet%d_dPhi08' % i] for i in range(4)])
-    btag04 = np.column_stack([df['AK4Puppijet%d_deepcsvb' % i] for i in range(4)])
-    btag04[np.abs(dphi04)<np.pi/2] = -np.inf
-    return np.max(btag04, axis=1)
+def build_leading_ak8_variables(df):
+    # jet |eta|<2.5 sometimes gives no events
+    # or other cuts in: https://github.com/DAZSLE/BaconAnalyzer/blob/102x/Analyzer/src/VJetLoader.cc#L270-L272
+    # set safe dummy values to avoid domain errors (FPU exceptions slow things down!)
+    clean(df, 'AK8Puppijet0_pt', 100., positive=True) # msdweight goes negative for pt < 13
+    clean(df, 'AK8Puppijet0_msd', 1e-7, positive=True)
+    clean(df, 'AK8Puppijet0_N2sdb1', np.inf)
+    clean(df, 'AK8Puppijet0_pt_JESUp', 1e-3)
+    clean(df, 'AK8Puppijet0_pt_JESDown', 1e-3)
+    clean(df, 'AK8Puppijet0_pt_JERUp', 1e-3)
+    clean(df, 'AK8Puppijet0_pt_JERDown', 1e-3)
+    clean(df, 'AK8Puppijet0_deepdoubleb', -1.)
+    df['AK8Puppijet0_msd'] *= corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta'])
+    df['ak8jet_rho'] = 2*np.log(df['AK8Puppijet0_msd']/df['AK8Puppijet0_pt'])
+    df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - corrections['2017_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
 
 
 def subleading_n3(df):
-    e4_v2_jet1 = clean(df['AK8Puppijet1_e4_v2_sdb1'], 1.)
-    e3_v1_jet1 = clean(df['AK8Puppijet1_e3_v1_sdb1'], -1.)
-    return e4_v2_jet1/np.maximum(1e-4, e3_v1_jet1)**2
+    e4_v2_jet1 = clean(df, 'AK8Puppijet1_e4_v2_sdb1', 1.)
+    e3_v1_jet1 = clean(df, 'AK8Puppijet1_e3_v1_sdb1', 1e-4, positive=True)
+    return df['AK8Puppijet1_e4_v2_sdb1']/df['AK8Puppijet1_e3_v1_sdb1']**2
+
+
+def build_subleading_ak8_variables(df):
+    dphi = np.abs(np.unwrap(df['AK8Puppijet1_phi'] - df['AK8Puppijet0_phi']))
+    df['opposite_ak8_n3sdb1'] = np.where(dphi > np.pi/2., subleading_n3(df), np.inf)
+    df['opposite_ak8_tau32'] = np.where(dphi > np.pi/2., df['AK8Puppijet1_tau32'], np.inf)
+    df['opposite_ak8_msd'] = np.where(dphi > np.pi/2., df['AK8Puppijet1_msd'], np.inf)
+
+
+def build_ak4_variables(df):
+    # dR08, dPhi08 with respect to leading ak8 jet: https://github.com/DAZSLE/BaconAnalyzer/blob/102x/Analyzer/src/JetLoader.cc#L478-L479
+    n_ak4 = 4
+    stack = lambda var: np.column_stack([df['AK4Puppijet%d_%s' % (i, var)] for i in range(n_ak4)])
+    dR = stack('dR08')
+    dphi = stack('dPhi08')
+    btag = stack('deepcsvb')
+    pt = stack('pt')
+    # seems |eta|<2.5 already in tuple
+    require = (np.abs(dphi) > np.pi/2) & (pt > 30.)
+    btag_ttrej = np.where(require, btag, -np.inf)
+    df['opposite_ak4_leadingDeepCSV'] = np.max(btag_ttrej, axis=1)
+    require = (dR > 0.8) & (pt > 50.)
+    btag_muCR = np.where(require, btag, -np.inf)
+    df['ak4_leadingDeepCSV_dR08'] = np.max(btag_muCR, axis=1)
+
+
+def build_met_systematics(df):
+    metx = df['pfmet']*np.sin(df['pfmetphi'])
+    mety = df['pfmet']*np.cos(df['pfmetphi'])
+    df['pfmet_JESUp'] = np.hypot(metx + df['MetXCorrjesUp'], mety + df['MetYCorrjesUp'])
+    df['pfmet_JESDown'] = np.hypot(metx + df['MetXCorrjesDown'], mety + df['MetYCorrjesDown'])
+    df['pfmet_JERUp'] = np.hypot(metx + df['MetXCorrjerUp'], mety + df['MetYCorrjerUp'])
+    df['pfmet_JERDown'] = np.hypot(metx + df['MetXCorrjerDown'], mety + df['MetYCorrjerDown'])
 
 
 def process(df):
     isData = df['dataset'] == 'data_obs'
 
     weights = Weights(df.size)
-    selection = PackedSelection()
 
     # we'll take care of cross section later, just check if +/-1
     if not isData:
@@ -173,33 +233,61 @@ def process(df):
                     corrections['2017_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
                     )
 
-    selection.add('minJetPt200', df['AK8Puppijet0_pt'] > 200)
+    # muon CR weights
+    if not isData:
+        mu_abseta = np.abs(df['vmuoLoose0_eta'])
+        weights.add('mutrigweight',
+                    corrections['2017_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta),
+                    corrections['2017_mutrigweight_pt_abseta_mutrigweightShift'](df['vmuoLoose0_pt'], mu_abseta),
+                    shift=True
+                    )
+        weights.add('muidweight',
+                    corrections['2017_muidweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt']),
+                    corrections['2017_muidweight_abseta_pt_muidweightShift'](mu_abseta, df['vmuoLoose0_pt']),
+                    shift=True
+                    )
+        weights.add('muisoweight',
+                    corrections['2017_muisoweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt']),
+                    corrections['2017_muisoweight_abseta_pt_muisoweightShift'](mu_abseta, df['vmuoLoose0_pt']),
+                    shift=True
+                    )
+
+
+    build_leading_ak8_variables(df)
+    build_subleading_ak8_variables(df)
+    build_ak4_variables(df)
+    build_met_systematics(df)
+
+    selection = PackedSelection()
+    if isData:
+        selection.add('trigger', df['triggerBits'] & corrections['2017_triggerMask'])
+    else:
+        selection.add('trigger', np.ones(df.size, dtype='bool'))
+
     selection.add('noLeptons', (df['neleLoose']==0) & (df['nmuLoose']==0) & (df['ntau']==0))
     selection.add('oneMuon', (df['neleLoose']==0) & (df['nmuLoose']==1) & (df['ntau']==0))
-
-    # jet |eta|<2.5 sometimes gives no events
-    # or other cuts in: https://github.com/DAZSLE/BaconAnalyzer/blob/102x/Analyzer/src/VJetLoader.cc#L270-L272
-    # make some dummy value to avoid domain errors (FPU exceptions slow things down!)
-    df['ak8jet_pt'] = clean(df['AK8Puppijet0_pt'], 0.001)
-    df['ak8jet_n2'] = clean(df['AK8Puppijet0_N2sdb1'], np.inf)
-
-    df['ak8jet_msd'] = df['AK8Puppijet0_msd'] * corrections['msdweight'](df['ak8jet_pt'], df['AK8Puppijet0_eta'])
-    df['ak8jet_rho'] = 2*np.log(np.maximum(1e-4, df['ak8jet_msd']/df['ak8jet_pt']))
-    df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - corrections['2017_n2ddt_rho_pt'](df['ak8jet_rho'], df['ak8jet_pt'])
-    selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
+    selection.add('muonAcceptance', (df['vmuoLoose0_pt'] > 55.) & (np.abs(df['vmuoLoose0_eta']) < 2.1))
+    selection.add('ak4btagMediumDR08', df['ak4_leadingDeepCSV_dR08'] > 0.4941)  # at least one passes medium cut
+    selection.add('muonDphiAK8', np.abs(np.unwrap(df['vmuoLoose0_phi'] - df['AK8Puppijet0_phi'])) > 2*np.pi/3)
+    selection.add('antiak4btagMediumOppHem', df['opposite_ak4_leadingDeepCSV'] < 0.4941)  # none pass
     selection.add('tightVjet', df['AK8Puppijet0_isTightVJet'] != 0)
+    selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
+    selection.add('doublebtagPass', df['AK8Puppijet0_deepdoubleb'] > 0.9)
+    selection.add('jetMass', df['AK8Puppijet0_msd'] > 40.)
 
+    selection.add('jetKinematics', df['AK8Puppijet0_pt'] > 450.)
+    selection.add('jetKinematicsMuonCR', df['AK8Puppijet0_pt'] > 400.)
     selection.add('pfmet140', df['pfmet'] < 140.)
 
-    dphi = np.unwrap(df['AK8Puppijet1_phi'] - df['AK8Puppijet0_phi'])
-    df['opposite_ak8_n3sdb1'] = np.where(np.abs(dphi) > np.pi/2., subleading_n3(df), np.inf)
-    df['opposite_ak8_tau32'] = np.where(np.abs(dphi) > np.pi/2., df['AK8Puppijet1_tau32'], np.inf)
-    df['opposite_ak8_msd'] = np.where(np.abs(dphi) > np.pi/2., df['AK8Puppijet1_msd'], np.inf)
-    df['opposite_ak4_leadingDeepCSV'] = oppositeside_maxak4_btag(df)
+    for syst in ['JESUp', 'JESDown', 'JERUp', 'JERDown']:
+        selection.add('jetKinematics'+syst, df['AK8Puppijet0_pt_'+syst] > 450)
+        selection.add('jetKinematicsMuonCR'+syst, df['AK8Puppijet0_pt_'+syst] > 400.)
+        selection.add('pfmet140'+syst, df['pfmet_'+syst] < 140.)
 
-    signalregion = {'n2ddtPass', 'tightVjet', 'noLeptons', 'minJetPt200', 'tightVjet'}
-    weight_signalregion = weights.weight() * selection.all(signalregion)
-    weight_presel = weights.weight()
+    regions = {}
+    regions['signalregion'] = {'trigger', 'n2ddtPass', 'noLeptons', 'jetKinematics', 'tightVjet', 'doublebtagPass', 'antiak4btagMediumOppHem'}
+    # TODO: mutrigger
+    regions['muoncontrol'] = {'n2ddtPass', 'oneMuon', 'jetKinematicsMuonCR', 'tightVjet', 'doublebtagPass', 'ak4btagMediumDR08', 'muonDphiAK8'}
 
     print(weights._weightStats)
     hout = {}
@@ -211,12 +299,20 @@ def process(df):
                 h.fill(dataset=dataset, sumw=1, weight=df['skim_sumw'])
             else:
                 h.fill(dataset=dataset, sumw=df['scale1fb'])
-        elif histname == 'pfmet_nminus1_SR':
-            h.fill(**fields, weight=weights.weight() * selection.all(signalregion - {'pfmet140'}))
-        elif '_SR' in histname:
-            h.fill(**fields, weight=weight_signalregion)
+        elif 'nminus1' in histname:
+            _, sel, region = histname.split('_')
+            cut = regions[region] - {sel}
+            weight = weights.weight() * selection.all(cut)
+            h.fill(**fields, weight=weight)
+        # TODO: nested hists? search region mames in histname?
+        elif 'signalregion' in histname:
+            region = 'signalregion'
+            cut = regions[region]
+            weight = weights.weight() * selection.all(cut)
+            h.fill(**fields, weight=weight)
         else:
-            h.fill(**fields, weight=weight_presel)
+            weight = weights.weight()
+            h.fill(**fields, weight=weight)
         hout[histname] = h
 
     return hout
@@ -225,7 +321,7 @@ def process(df):
 class DataFrame(collections.abc.MutableMapping):
     def __init__(self, tree):
         self._tree = tree
-        self._dict = self._tree.lazyarrays(namedecode='ascii')
+        self._dict = {}
         self._materialized = set()
 
     def __delitem__(self, key):
@@ -233,11 +329,11 @@ class DataFrame(collections.abc.MutableMapping):
 
     def __getitem__(self, key):
         if key in self._dict:
-            value = self._dict[key]
-            if isinstance(value, uproot.tree.LazyArray):
-                self._materialized.add(key)
-                value = value[:]
-            return value
+            return self._dict[key]
+        elif key in self._tree:
+            self._materialized.add(key)
+            self._dict[key] = self._tree[key].array()
+            return self._dict[key]
         else:
             raise KeyError(key)
 

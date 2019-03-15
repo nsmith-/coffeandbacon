@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import json
 import gzip
 import cloudpickle
@@ -23,6 +24,8 @@ corrections['2017_mutrigweight_pt_abseta'] = evaluator['2017_mutrigger_Mu50_PtEt
 corrections['2017_mutrigweight_pt_abseta_mutrigweightShift'] = evaluator['2017_mutrigger_Mu50_PtEtaBins/efficienciesDATA/pt_abseta_DATA_error']
 corrections['2017_muidweight_abseta_pt'] = evaluator['2017_muid_NUM_SoftID_DEN_genTracks/abseta_pt_value']
 corrections['2017_muidweight_abseta_pt_muidweightShift'] = evaluator['2017_muid_NUM_SoftID_DEN_genTracks/abseta_pt_error']
+corrections['2017_muisoweight_abseta_pt'] = evaluator['2017_muiso_NUM_LooseRelIso_DEN_LooseID/abseta_pt_value']
+corrections['2017_muisoweight_abseta_pt_muisoweightShift'] = evaluator['2017_muiso_NUM_LooseRelIso_DEN_LooseID/abseta_pt_error']
 
 
 gpar = np.array([1.00626, -1.06161, 0.0799900, 1.20454])
@@ -34,7 +37,7 @@ def msd_weight(pt, eta):
     cenweight = np.dot(ptpow, cpar)
     forweight = np.dot(ptpow, fpar)
     weight = np.where(np.abs(eta)<1.3, cenweight, forweight)
-    return weight
+    return genw*weight
 
 corrections['msdweight'] = msd_weight
 
