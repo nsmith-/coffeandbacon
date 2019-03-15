@@ -34,11 +34,11 @@ with gzip.open("corrections.cpkl.gz", "rb") as fin:
 # axis definitions
 dataset = hist.Cat("dataset", "Primary dataset")
 gencat = hist.Bin("AK8Puppijet0_isHadronicV", "Matched", [0,1,2,3,9,10,11])
-jetpt = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 500, 550, 600, 675, 800, 1000])
-jetpt_coarse = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 800])
-jetmass = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", 23, 40, 201)
-jetmass_coarse = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", [40, 100, 140, 200])
-jetrho = hist.Bin("jetrho", r"Jet $\rho$", 13, -6, -2.1)
+jetpt = hist.Bin("ak8jet_pt", "Jet $p_T$", [450, 500, 550, 600, 675, 800, 1000])
+jetpt_coarse = hist.Bin("ak8jet_pt", "Jet $p_T$", [450, 800])
+jetmass = hist.Bin("ak8jet_msd", "Jet $m_{sd}$", 23, 40, 201)
+jetmass_coarse = hist.Bin("ak8jet_msd", "Jet $m_{sd}$", [40, 100, 140, 200])
+jetrho = hist.Bin("ak8jet_rho", r"Jet $\rho$", 13, -6, -2.1)
 doubleb = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", 20, 0., 1)
 doublec = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", 20, 0., 1.)
 doublecvb = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", 20, 0., 1.)
@@ -53,12 +53,9 @@ n2ddt_coarse = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", [0.])
 
 hists = {}
 hists['sumw'] = hist.Hist("sumw", dataset, hist.Bin("sumw", "Weight value", [0.]))
-hists['hjetpt'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
-hists['hjetpt_SR'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
-#hists['hsculpt'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
+hists['hjetpt_SR'] = hist.Hist("Events", dataset, gencat, hist.Bin("ak8jet_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
 hists['hsculpt_SR'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
 hists['htagtensor_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
-
 hists['pfmet_nminus1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
 hists['opposite_ak8_n3sdb1_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0.5, 3))
 hists['opposite_ak8_tau32_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 1))
@@ -67,68 +64,165 @@ hists['opposite_ak4_leadingDeepCSV_SR'] = hist.Hist("Events", dataset, gencat, j
 hists['njets_ak4_SR'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("nAK4PuppijetsPt30", "Number AK4 Jets", 8, 0, 8))
 
 
+class PackedSelection(object):
+    def __init__(self, dtype='uint64'):
+        self._dtype = np.dtype(dtype)
+        self._names = []
+        self._mask = None
+
+    def add(self, name, selection):
+        if isinstance(selection, np.ndarray) and selection.dtype == np.dtype('bool'):
+            if len(self._names) == 0:
+                self._mask = np.zeros(shape=selection.shape, dtype=self._dtype)
+            elif len(self._names) == 64:
+                raise RuntimeError("Exhausted all slots for %r, consider a larger dtype or fewer selections" % self._dtype)
+            elif self._mask.shape != selection.shape:
+                raise ValueError("New selection '%s' has different shape than existing ones (%r vs. %r)" % (name, selection.shape, self._mask.shape))
+            self._mask |= selection.astype(self._dtype) << len(self._names)
+            self._names.append(name)
+        else:
+            raise ValueError("PackedSelection only understands numpy boolean arrays, got %r" % selection)
+
+    def require(self, **names):
+        mask = 0
+        require = 0
+        for name, val in names.items():
+            if not isinstance(val, bool):
+                raise ValueError("Please use only booleans in PackedSelection.require(), received %r for %s" % (val, name))
+            idx = self._names.index(name)
+            mask |= 1<<idx
+            require |= int(val)<<idx
+        return (self._mask & mask) == require
+
+    def all(self, *names):
+        if len(names) == 1 and isinstance(names[0], collections.abc.Iterable):
+            names = names[0]
+        return self.require(**{name: True for name in names})
+
+
+class Weights(object):
+    def __init__(self, size):
+        self._weight = np.ones(size)
+        self._weightShift = {}
+        self._weightStats = {}
+
+    def add(self, name, weight, weightUp=None, weightDown=None):
+        self._weight *= weight
+        if weightUp is not None:
+            self._weightShift[name+'Up'] = weightUp/weight
+        if weightDown is not None:
+            self._weightShift[name+'Down'] = weightDown/weight
+        self._weightStats[name] = {
+            'sumw': weight.sum(),
+            'sumw2': (weight**2).sum(),
+            'min': weight.min(),
+            'max': weight.max(),
+            'n': weight.size,
+        }
+
+    def weight(self, shift=None):
+        if shift is None:
+            return self._weight
+        return self._weight * self._weightShift[shift]
+
+
 def clean(val, default):
     val[np.isnan(val)|(val==-999.)] = default
     return val
 
 
-def process(df):
-    isData = df['dataset'] == "data_obs"
-    # jet |eta|<2.5 sometimes gives no events
-    # or other cuts in: https://github.com/DAZSLE/BaconAnalyzer/blob/102x/Analyzer/src/VJetLoader.cc#L270-L272
-    df["AK8Puppijet0_pt"] = clean(df["AK8Puppijet0_pt"], 0.001)
-    df["AK8Puppijet0_N2sdb1"] = clean(df["AK8Puppijet0_N2sdb1"], np.inf)
-
-    # we'll take care of cross section later, just check if +/-1
-    genW = np.sign(df["scale1fb"])
-    weight = genW
-    if dataset in corrections['2017_pileupweight_dataset']:
-        weight *= corrections['2017_pileupweight_dataset'][dataset](df["npu"])
-    if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
-        weight *= df["kfactorEWK"] * df["kfactorQCD"]
-    weight *= corrections['2017_trigweight_msd_pt'](df["AK8Puppijet0_msd"], df["AK8Puppijet0_pt"])
-    weight *= (df["AK8Puppijet0_pt"] > 200)
-
-    weight_SR = weight * ((df["neleLoose"]==0) & (df["nmuLoose"]==0) & (df["ntau"]==0))
-
-    df["AK8Puppijet0_msd"] *= corrections['msdweight'](df["AK8Puppijet0_pt"], df["AK8Puppijet0_eta"])
-    df["jetrho"] = 2*np.log(np.maximum(1e-4, df["AK8Puppijet0_msd"]/df["AK8Puppijet0_pt"]))
-    df["AK8Puppijet0_N2sdb1_ddt"] = df["AK8Puppijet0_N2sdb1"] - corrections['2017_n2ddt_rho_pt'](df["jetrho"], df["AK8Puppijet0_pt"])
-    weight_SR *= (df["AK8Puppijet0_N2sdb1_ddt"] < 0) & (df["AK8Puppijet0_isTightVJet"]!=0)
-    weight_metCut = (df["pfmet"] < 140.)
-
-    e4_v2_jet1 = clean(df['AK8Puppijet1_e4_v2_sdb1'], 1.)
-    e3_v1_jet1 = clean(df['AK8Puppijet1_e3_v1_sdb1'], -1.)
-    dphi = np.unwrap(df['AK8Puppijet1_phi'] - df['AK8Puppijet0_phi'])
-    df['opposite_ak8_n3sdb1'] = np.where(np.abs(dphi) > np.pi/2., e4_v2_jet1/np.maximum(1e-4, e3_v1_jet1)**2, np.inf)
-    df['opposite_ak8_tau32'] = np.where(np.abs(dphi) > np.pi/2., df['AK8Puppijet1_tau32'], np.inf)
-    df['opposite_ak8_msd'] = np.where(np.abs(dphi) > np.pi/2., df['AK8Puppijet1_msd'], np.inf)
+def oppositeside_maxak4_btag(df):
     dphi04 = np.column_stack([df['AK4Puppijet%d_dPhi08' % i] for i in range(4)])
     btag04 = np.column_stack([df['AK4Puppijet%d_deepcsvb' % i] for i in range(4)])
     btag04[np.abs(dphi04)<np.pi/2] = -np.inf
-    df['opposite_ak4_leadingDeepCSV'] = np.max(btag04, axis=1)
+    return np.max(btag04, axis=1)
 
+
+def subleading_n3(df):
+    e4_v2_jet1 = clean(df['AK8Puppijet1_e4_v2_sdb1'], 1.)
+    e3_v1_jet1 = clean(df['AK8Puppijet1_e3_v1_sdb1'], -1.)
+    return e4_v2_jet1/np.maximum(1e-4, e3_v1_jet1)**2
+
+
+def process(df):
+    isData = df['dataset'] == 'data_obs'
+
+    weights = Weights(df.size)
+    selection = PackedSelection()
+
+    # we'll take care of cross section later, just check if +/-1
+    if not isData:
+        weights.add('genweight', np.sign(df['scale1fb']))
+
+    if dataset in corrections['2017_pileupweight_dataset']:
+        weights.add('pileupweight',
+                    corrections['2017_pileupweight_dataset'][dataset](df['npu']),
+                    corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
+                    corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
+                    )
+
+    if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
+        weights.add('kfactor', df['kfactorEWK'] * df['kfactorQCD'])
+        # TODO unc.
+
+    # trigger weight uses uncorrected jet mass
+    if not isData:
+        weights.add('trigweight',
+                    corrections['2017_trigweight_msd_pt'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
+                    corrections['2017_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
+                    corrections['2017_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
+                    )
+
+    selection.add('minJetPt200', df['AK8Puppijet0_pt'] > 200)
+    selection.add('noLeptons', (df['neleLoose']==0) & (df['nmuLoose']==0) & (df['ntau']==0))
+    selection.add('oneMuon', (df['neleLoose']==0) & (df['nmuLoose']==1) & (df['ntau']==0))
+
+    # jet |eta|<2.5 sometimes gives no events
+    # or other cuts in: https://github.com/DAZSLE/BaconAnalyzer/blob/102x/Analyzer/src/VJetLoader.cc#L270-L272
+    # make some dummy value to avoid domain errors (FPU exceptions slow things down!)
+    df['ak8jet_pt'] = clean(df['AK8Puppijet0_pt'], 0.001)
+    df['ak8jet_n2'] = clean(df['AK8Puppijet0_N2sdb1'], np.inf)
+
+    df['ak8jet_msd'] = df['AK8Puppijet0_msd'] * corrections['msdweight'](df['ak8jet_pt'], df['AK8Puppijet0_eta'])
+    df['ak8jet_rho'] = 2*np.log(np.maximum(1e-4, df['ak8jet_msd']/df['ak8jet_pt']))
+    df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - corrections['2017_n2ddt_rho_pt'](df['ak8jet_rho'], df['ak8jet_pt'])
+    selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
+    selection.add('tightVjet', df['AK8Puppijet0_isTightVJet'] != 0)
+
+    selection.add('pfmet140', df['pfmet'] < 140.)
+
+    dphi = np.unwrap(df['AK8Puppijet1_phi'] - df['AK8Puppijet0_phi'])
+    df['opposite_ak8_n3sdb1'] = np.where(np.abs(dphi) > np.pi/2., subleading_n3(df), np.inf)
+    df['opposite_ak8_tau32'] = np.where(np.abs(dphi) > np.pi/2., df['AK8Puppijet1_tau32'], np.inf)
+    df['opposite_ak8_msd'] = np.where(np.abs(dphi) > np.pi/2., df['AK8Puppijet1_msd'], np.inf)
+    df['opposite_ak4_leadingDeepCSV'] = oppositeside_maxak4_btag(df)
+
+    signalregion = {'n2ddtPass', 'tightVjet', 'noLeptons', 'minJetPt200', 'tightVjet'}
+    weight_signalregion = weights.weight() * selection.all(signalregion)
+    weight_presel = weights.weight()
+
+    print(weights._weightStats)
     hout = {}
-    for k in hists.keys():
-        h = hists[k].copy(content=False)
+    for histname in hists.keys():
+        h = hists[histname].copy(content=False)
         fields = {k: df[k] for k in h.fields if k in df}
-        if k == 'sumw':
+        if histname == 'sumw':
             if 'skim_sumw' in df:
                 h.fill(dataset=dataset, sumw=1, weight=df['skim_sumw'])
             else:
-                h.fill(dataset=dataset, sumw=genW)
-        elif k == 'pfmet_nminus1_SR':
-            h.fill(**fields, weight=weight_SR)
-        elif '_SR' in k:
-            h.fill(**fields, weight=weight_SR*weight_metCut)
+                h.fill(dataset=dataset, sumw=df['scale1fb'])
+        elif histname == 'pfmet_nminus1_SR':
+            h.fill(**fields, weight=weights.weight() * selection.all(signalregion - {'pfmet140'}))
+        elif '_SR' in histname:
+            h.fill(**fields, weight=weight_signalregion)
         else:
-            h.fill(**fields, weight=weight)
-        hout[k] = h
+            h.fill(**fields, weight=weight_presel)
+        hout[histname] = h
 
     return hout
 
 
-class LazyArrays(collections.abc.MutableMapping):
+class DataFrame(collections.abc.MutableMapping):
     def __init__(self, tree):
         self._tree = tree
         self._dict = self._tree.lazyarrays(namedecode='ascii')
@@ -142,13 +236,13 @@ class LazyArrays(collections.abc.MutableMapping):
             value = self._dict[key]
             if isinstance(value, uproot.tree.LazyArray):
                 self._materialized.add(key)
-                return value[:]
+                value = value[:]
             return value
         else:
             raise KeyError(key)
 
     def __iter__(self):
-        print("uh oh")
+        print('uh oh')
         for item in self._dict:
             self._materialized.add(item[0])
             yield item
@@ -163,6 +257,10 @@ class LazyArrays(collections.abc.MutableMapping):
     def materialized(self):
         return self._materialized
 
+    @property
+    def size(self):
+        return self._tree.numentries
+
 
 def processfile(dataset, file):
     fin = uproot.open(file)
@@ -174,7 +272,7 @@ def processfile(dataset, file):
     else:
         tree = fin['Events']
 
-    df = LazyArrays(tree)
+    df = DataFrame(tree)
     df['dataset'] = dataset
     df['skim_sumw'] = skim_sumw
     tic = time.time()
@@ -194,7 +292,7 @@ def processfile(dataset, file):
     return output
 
 
-test = False
+test = True
 
 tstart = time.time()
 for h in hists.values(): h.clear()

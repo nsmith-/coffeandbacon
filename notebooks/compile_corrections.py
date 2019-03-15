@@ -42,15 +42,30 @@ corrections['msdweight'] = msd_weight
 with gzip.open("correction_files/pileup_mc.pkl.gz", "rb") as fin:
     pileup_corr = pickle.load(fin)
 
-with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Collisions17_withVar.root") as fin:
-    data_pu = fin["pileup"].values
+with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Collisions17_withVar.root") as fin_pileup:
+    norm = lambda x: x / x.sum()
+    data_pu = norm(fin_pileup["pileup"].values)
+    data_pu_puUp = norm(fin_pileup["pileup_plus"].values)
+    data_pu_puDown = norm(fin_pileup["pileup_minus"].values)
+
+    pileup_corr_puUp = {}
+    pileup_corr_puDown = {}
     for k in pileup_corr.keys():
-        mc_pu = pileup_corr[k]
-        corr = (data_pu / np.maximum(mc_pu, 1)) / (data_pu.sum() / mc_pu.sum())
-        corr[mc_pu==0.] = 1.
-        pileup_corr[k] = lookup_tools.dense_lookup.dense_lookup(corr, fin["pileup"].edges)
+        mc_pu = norm(pileup_corr[k])
+        mask = mc_pu > 0.
+        corr = data_pu.copy()
+        corr_puUp = data_pu_puUp.copy()
+        corr_puDown = data_pu_puDown.copy()
+        corr[mask] /= mc_pu[mask]
+        corr_puUp[mask] /= mc_pu[mask]
+        corr_puDown[mask] /= mc_pu[mask]
+        pileup_corr[k] = lookup_tools.dense_lookup.dense_lookup(corr, fin_pileup["pileup"].edges)
+        pileup_corr_puUp[k] = lookup_tools.dense_lookup.dense_lookup(corr_puUp, fin_pileup["pileup"].edges)
+        pileup_corr_puDown[k] = lookup_tools.dense_lookup.dense_lookup(corr_puDown, fin_pileup["pileup"].edges)
 
 corrections['2017_pileupweight_dataset'] = pileup_corr
+corrections['2017_pileupweight_dataset_puUp'] = pileup_corr_puUp
+corrections['2017_pileupweight_dataset_puDown'] = pileup_corr_puDown
 
 
 with uproot.open("correction_files/TrigEff_2017BtoF_noPS_Feb21.root") as fin:
