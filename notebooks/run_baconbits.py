@@ -10,18 +10,21 @@ import json
 import time
 import numexpr
 import pprint
+import copy
 
 import uproot
 import awkward
 import numpy as np
 from fnal_column_analysis_tools import hist, lookup_tools, processor
 
-from pyinstrument import Profiler
-profiler = Profiler()
-profiler.start()
+test = True
 
-with open("metadata/samplefiles.json") as fin:
-    samplefiles = json.load(fin)
+if test:
+    from pyinstrument import Profiler
+    profiler = Profiler()
+    profiler.start()
+
+tstart = time.time()
 
 # instrument xrootd source
 def _read(self, chunkindex):
@@ -54,21 +57,26 @@ doublecvb_coarse = [0.93, 0.91, 0.6, 0.2, 0.17]
 doublecvb_coarse = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", doublecvb_coarse[::-1])
 
 
-hists = {}
-hists['sumw'] = hist.Hist("sumw", dataset, hist.Bin("sumw", "Weight value", [0.]))
-hists['hjetpt_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
-hists['hsculpt_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
-hists['htagtensor_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
-hists['opposite_ak8_n3sdb1_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0.5, 3))
-hists['opposite_ak8_tau32_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 1))
-hists['opposite_ak8_msd_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_msd", r"Jet $\m_{sd}$", 40, 50, 200))
-hists['opposite_ak4_leadingDeepCSV_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
-hists['njets_ak4_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("nAK4PuppijetsPt30", "Number AK4 Jets", 8, 0, 8))
+accumulator_def = {}
+accumulator_def['sumw'] = hist.Hist("sumw", dataset, hist.Bin("sumw", "Weight value", [0.]))
+accumulator_def['hjetpt_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
+accumulator_def['hsculpt_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
+accumulator_def['htagtensor_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
+accumulator_def['opposite_ak8_n3sdb1_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0.5, 3))
+accumulator_def['opposite_ak8_tau32_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 1))
+accumulator_def['opposite_ak8_msd_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_msd", r"Jet $\m_{sd}$", 40, 50, 200))
+accumulator_def['opposite_ak4_leadingDeepCSV_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
+accumulator_def['njets_ak4_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("nAK4PuppijetsPt30", "Number AK4 Jets", 8, 0, 8))
 
-hists['nminus1_pfmet_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
-hists['nminus1_n2ddtPass_signalregion'] = hist.Hist("Events", dataset, gencat, jetmass_coarse, doubleb_coarse, hist.Bin("ak8jet_n2ddt", r"Jet $N_{2,DDT}^{\beta=1}$", 40, -1, 1))
-hists['templates_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Cat("systematic", "Systematic"), jetpt, jetmass, doubleb_coarse)
-hists['templates_muoncontrol'] = hist.Hist("Events", dataset, gencat, hist.Cat("systematic", "Systematic"), jetpt, jetmass, doubleb_coarse)
+accumulator_def['nminus1_pfmet_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
+accumulator_def['nminus1_n2ddtPass_signalregion'] = hist.Hist("Events", dataset, gencat, jetmass_coarse, doubleb_coarse, hist.Bin("ak8jet_n2ddt", r"Jet $N_{2,DDT}^{\beta=1}$", 40, -1, 1))
+accumulator_def['templates_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Cat("systematic", "Systematic"), jetpt, jetmass, doubleb_coarse)
+accumulator_def['templates_muoncontrol'] = hist.Hist("Events", dataset, gencat, hist.Cat("systematic", "Systematic"), jetpt, jetmass, doubleb_coarse)
+
+accumulator_def['nentries'] = 0
+accumulator_def['bytesread'] = 0
+accumulator_def['sumworktime'] = 0.
+accumulator_def['columns_accessed'] = set()
 
 
 def clean(df, val, default, positive=False):
@@ -135,12 +143,12 @@ def build_met_systematics(df):
 
 
 def process(df):
-    isData = df['dataset'] == 'data_obs'
+    isRealData = df['dataset'] in ["JetHT", "SingleMuon"]
 
     weights = processor.Weights(df.size)
 
     # we'll take care of cross section later, just check if +/-1
-    if not isData:
+    if not isRealData:
         weights.add('genweight', np.sign(df['scale1fb']))
 
     if dataset in corrections['2017_pileupweight_dataset']:
@@ -155,7 +163,7 @@ def process(df):
         # TODO unc.
 
     # trigger weight uses uncorrected jet mass
-    if not isData:
+    if not isRealData:
         weights.add('trigweight',
                     corrections['2017_trigweight_msd_pt'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
                     corrections['2017_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
@@ -163,7 +171,7 @@ def process(df):
                     )
 
     # muon CR weights
-    if not isData:
+    if not isRealData:
         mu_abseta = np.abs(df['vmuoLoose0_eta'])
         weights.add('mutrigweight',
                     corrections['2017_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta),
@@ -181,16 +189,18 @@ def process(df):
                     shift=True
                     )
 
-
     build_leading_ak8_variables(df)
     build_subleading_ak8_variables(df)
     build_ak4_variables(df)
     build_met_systematics(df)
 
     selection = processor.PackedSelection()
-    if isData:
-        selection.add('trigger', df['triggerBits'] & corrections['2017_triggerMask'])
-        selection.add('mutrigger', (df['triggerBits']&1) & df['passJson'].astype('bool'))
+    if isRealData:
+        # Only take jet triggers from JetHT, single muon triggers from SingleMuon dataset
+        # necessary but not sufficient condition to prevent double-counting
+        # (this plus mutually exclusive offline selections are sufficient)
+        selection.add('trigger', (df['triggerBits'] & corrections['2017_triggerMask']).astype('bool') & (dataset=="JetHT"))
+        selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool') & (dataset=="SingleMuon"))
     else:
         selection.add('trigger', np.ones(df.size, dtype='bool'))
         selection.add('mutrigger', np.ones(df.size, dtype='bool'))
@@ -221,18 +231,26 @@ def process(df):
     regions['signalregion'] = {'trigger', 'n2ddtPass', 'noLeptons', 'jetKinematics', 'tightVjet', 'antiak4btagMediumOppHem'}
     regions['muoncontrol'] = {'mutrigger', 'n2ddtPass', 'oneMuon', 'jetKinematicsMuonCR', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
 
-    print("Weight statistics:")
-    pprint.pprint(weights._weightStats, indent=4)
+    if test:
+        print("Weight statistics:")
+        pprint.pprint(weights._weightStats, indent=4)
 
     hout = {}
-    for histname in hists.keys():
-        h = hists[histname].copy(content=False)
+    for histname in accumulator_def.keys():
+        h = accumulator_def[histname]
+        if not isinstance(h, hist.Hist):
+            continue
+        h = h.copy(content=False)
         fields = {k: df[k] for k in h.fields if k in df}
         region = [r for r in regions.keys() if r in histname]
 
         if histname == 'sumw':
-            if 'skim_sumw' in df:
-                h.fill(dataset=dataset, sumw=1, weight=df['skim_sumw'])
+            if isRealData:
+                pass
+            elif 'skim_sumw' in df:
+                # hacky way to only accumulate file-level information once
+                if df['skim_sumw'] is not None:
+                    h.fill(dataset=dataset, sumw=1, weight=df['skim_sumw'])
             else:
                 h.fill(dataset=dataset, sumw=np.sign(df['scale1fb']))
         elif 'nminus1' in histname:
@@ -258,13 +276,25 @@ def process(df):
         elif len(region) > 1:
             raise ValueError("Histogram '%s' has a name matching multiple region definitions: %r" % (histname, region))
         else:
-            weight = weights.weight()
-            h.fill(**fields, weight=weight)
+            raise ValueError("Histogram '%s' does not fall into any region definitions." % (histname, ))
 
         hout[histname] = h
 
     return hout
 
+
+def collect(output, accumulators):
+    for k, v in output.items():
+        if k in accumulators:
+            try:
+                accumulators[k] += v
+            except TypeError:
+                try:
+                    accumulators[k] |= v
+                except TypeError:
+                    raise
+        else:
+            raise ValueError("output of processor contains unknown accumulator '%s'" % k)
 
 
 def processfile(dataset, file):
@@ -277,45 +307,28 @@ def processfile(dataset, file):
     else:
         tree = fin['Events']
 
-    df = processor.DataFrame(tree)
-    df['dataset'] = dataset
-    df['skim_sumw'] = skim_sumw
     tic = time.time()
 
-    hout = process(df)
+    output = copy.deepcopy(accumulator_def)
+    # would be cool to use columns_accessed and work time to dynamically optimize this
+    stride = 500000
+    for index in range(tree.numentries//stride + 1):
+        df = processor.DataFrame(tree, stride, index)
+        df['dataset'] = dataset
+        # hacky way to only accumulate file-level information once
+        df['skim_sumw'] = skim_sumw if index == 0 else None
+        collect(process(df), output)
 
     toc = time.time()
-    bytesread = fin.source.bytesread if isinstance(fin.source, uproot.source.xrootd.XRootDSource) else 0
-    output = {
-        'dataset': dataset,
-        'nentries': tree.numentries,
-        'histograms': hout,
-        'bytesread': bytesread,
-        'elapsedtime': toc-tic,
-        'columns': df.materialized,
-    }
+
+    output['nentries'] = tree.numentries
+    output['bytesread'] = fin.source.bytesread if isinstance(fin.source, uproot.source.xrootd.XRootDSource) else 0
+    output['sumworktime'] = toc-tic
+    output['columns_accessed'] = df.materialized
     return output
 
 
-test = True
-
-tstart = time.time()
-for h in hists.values(): h.clear()
-nevents = collections.defaultdict(lambda: 0.)
-nbytes = collections.defaultdict(lambda: 0.)
-sumworktime = 0.
-columns_accessed = set()
-
-def collect(output):
-    global sumworktime, columns_accessed
-    dataset = output['dataset']
-    nevents[dataset] += output['nentries']
-    nbytes[dataset] += output['bytesread']
-    sumworktime += output['elapsedtime']
-    for k, v in output['histograms'].items():
-        hists[k] += v
-    columns_accessed.update(output['columns'])
-
+final_accumulators = copy.deepcopy(accumulator_def)
 
 # TODO: rip this out and into fnal_column_analysis_tools.processor
 if test:
@@ -323,22 +336,26 @@ if test:
     testfiles = [
         ("TTToHadronic_TuneCP5_13TeV_powheg_pythia8", "TTToHadronic_TuneCP5_13TeV_powheg_pythia8_0.root"),
         ("TTToSemiLeptonic_TuneCP5_13TeV_powheg_pythia8", "TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8_0.root"),
+        ("JetHT", "JetHTRun2017F_17Nov2017_v1_24.rootnodupl.root"),
+        ("SingleMuon", "SingleMuonRun2017B_17Nov2017_v1_2.root"),
     ]
     for i, (dataset, file) in enumerate(testfiles):
-        collect(processfile(dataset, file))
+        collect(processfile(dataset, file), final_accumulators)
         print("Done processing test file %d" % i)
 else:
     nworkers = 10
+    with open("metadata/samplefiles.json") as fin:
+        samplefiles = json.load(fin)
     #fileslice = slice(None, 5)
     fileslice = slice(None)
     #with concurrent.futures.ThreadPoolExecutor(max_workers=nworkers) as executor:
     with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
         futures = set()
         samples = samplefiles['Hbb_create_2017']
-        for datasets in samples.values():
-            if isinstance(datasets, list):
-                # raw data, no norm
-                dataset = "data_obs"
+        for process, datasets in samples.items():
+            if process == "data_obs":
+                # raw data, no norm. TODO: proper metadata
+                dataset = "JetHT" if "JetHT" in datasets[0] else "SingleMuon"
                 futures.update(executor.submit(processfile, dataset, file) for file in datasets)
             elif isinstance(datasets, dict):
                 for dataset, files in datasets.items():
@@ -349,7 +366,7 @@ else:
             while len(futures) > 0:
                 finished = set(job for job in futures if job.done())
                 for job in finished:
-                    collect(job.result())
+                    collect(job.result(), final_accumulators)
                     processed += 1
                     print("Processing: done with % 4d / % 4d files" % (processed, total))
                 futures -= finished
@@ -389,34 +406,36 @@ def read_xsections(filename):
 xsections = read_xsections("metadata/xSections.dat")
 lumi = 41100  # [1/pb]
 
-sumw = hists.pop('sumw')
 scale = {}
-for ds in nevents.keys():
-    ds_sumw = sumw.values(overflow='all')[(ds,)]
-    print(ds, nevents[ds], ds_sumw)
-    if ds != "data_obs":
-        scale[ds] = lumi*xsections[ds] / (ds_sumw[1]-ds_sumw[0])
+sumw = final_accumulators.pop('sumw').values(overflow='all')
+for (ds,), ds_sumw in sumw.items():
+    print(ds, ds_sumw)
+    scale[ds] = lumi*xsections[ds] / (ds_sumw[1]-ds_sumw[0])
 
-for h in hists.values(): h.scale(scale, axis="dataset")
+for h in final_accumulators.values():
+    if isinstance(h, hist.Hist):
+        h.scale(scale, axis="dataset")
 
-dt = time.time() - tstart
 print("Columns accessed:")
-for col in sorted(list(columns_accessed)):
+for col in sorted(list(final_accumulators['columns_accessed'])):
     print("\t", col)
-print("%.2f us*cpu/event" % (1e6*dt*nworkers/sum(nevents.values()), ))
-print("%.2f us*cpu/event work time" % (1e6*sumworktime/sum(nevents.values()), ))
-nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in hists.values())
-nfilled = sum(sum(np.sum(arr>0) for arr in h._sumw.values()) for h in hists.values())
-print("Processed %.1fM events" % (sum(nevents.values())/1e6, ))
-print("Read %.1fM bytes" % (sum(nbytes.values())/1e6, ))
+print("%.2f us*cpu/event work time" % (1e6*final_accumulators['sumworktime']/final_accumulators['nentries'], ))
+nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in final_accumulators.values() if isinstance(h, hist.Hist))
+nfilled = sum(sum(np.sum(arr>0) for arr in h._sumw.values()) for h in final_accumulators.values() if isinstance(h, hist.Hist))
+print("Processed %.1fM events" % (final_accumulators['nentries']/1e6, ))
+print("Read %.1fM bytes" % (final_accumulators['bytesread']/1e6, ))
 print("Filled %.1fM bins" % (nbins/1e6, ))
 print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
 
 # Pickle is not very fast or memory efficient, will be replaced by something better soon
 with gzip.open("hists.pkl.gz", "wb") as fout:
-    pickle.dump(hists, fout)
+    pickle.dump(final_accumulators, fout)
 
-profiler.stop()
-with open("run_baconbits.html", "w") as fout:
-    fout.write(profiler.output_html())
+dt = time.time() - tstart
+print("%.2f us*cpu/event overall" % (1e6*dt*nworkers/final_accumulators['nentries'], ))
+
+if test:
+    profiler.stop()
+    with open("run_baconbits.html", "w") as fout:
+        fout.write(profiler.output_html())
 
