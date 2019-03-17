@@ -17,7 +17,7 @@ import awkward
 import numpy as np
 from fnal_column_analysis_tools import hist, lookup_tools, processor
 
-test = True
+test = False
 
 if test:
     from pyinstrument import Profiler
@@ -143,13 +143,14 @@ def build_met_systematics(df):
 
 
 def process(df):
-    isRealData = df['dataset'] in ["JetHT", "SingleMuon"]
+    dataset = df['dataset']
+    isRealData = dataset in ["JetHT", "SingleMuon"]
 
     weights = processor.Weights(df.size)
 
-    # we'll take care of cross section later, just check if +/-1
+    # SumWeights is sum(scale1fb), so we need to use full value here
     if not isRealData:
-        weights.add('genweight', np.sign(df['scale1fb']))
+        weights.add('genweight', df['scale1fb'])
 
     if dataset in corrections['2017_pileupweight_dataset']:
         weights.add('pileupweight',
@@ -343,7 +344,7 @@ if test:
         collect(processfile(dataset, file), final_accumulators)
         print("Done processing test file %d" % i)
 else:
-    nworkers = 10
+    nworkers = 12
     with open("metadata/samplefiles.json") as fin:
         samplefiles = json.load(fin)
     #fileslice = slice(None, 5)
@@ -352,8 +353,8 @@ else:
     with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
         futures = set()
         samples = samplefiles['Hbb_create_2017']
-        for process, datasets in samples.items():
-            if process == "data_obs":
+        for group, datasets in samples.items():
+            if group == "data_obs":
                 # raw data, no norm. TODO: proper metadata
                 dataset = "JetHT" if "JetHT" in datasets[0] else "SingleMuon"
                 futures.update(executor.submit(processfile, dataset, file) for file in datasets)
