@@ -98,7 +98,9 @@ def build_leading_ak8_variables(df):
     clean(df, 'AK8Puppijet0_pt_JERUp', 1e-3)
     clean(df, 'AK8Puppijet0_pt_JERDown', 1e-3)
     clean(df, 'AK8Puppijet0_deepdoubleb', -1.)
-    df['AK8Puppijet0_msd'] *= corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta'])
+    df['AK8Puppijet0_msd_raw'] = df['AK8Puppijet0_msd']
+    # for very large pt values, correction can become negative
+    df['AK8Puppijet0_msd'] = np.maximum(1e-7, df['AK8Puppijet0_msd']*corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
     df['ak8jet_rho'] = 2*np.log(df['AK8Puppijet0_msd']/df['AK8Puppijet0_pt'])
     df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - corrections['2017_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
 
@@ -146,50 +148,6 @@ def process(df):
     dataset = df['dataset']
     isRealData = dataset in ["JetHT", "SingleMuon"]
 
-    weights = processor.Weights(df.size)
-
-    # SumWeights is sum(scale1fb), so we need to use full value here
-    if not isRealData:
-        weights.add('genweight', df['scale1fb'])
-
-    if dataset in corrections['2017_pileupweight_dataset']:
-        weights.add('pileupweight',
-                    corrections['2017_pileupweight_dataset'][dataset](df['npu']),
-                    corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
-                    corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
-                    )
-
-    if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
-        weights.add('kfactor', df['kfactorEWK'] * df['kfactorQCD'])
-        # TODO unc.
-
-    # trigger weight uses uncorrected jet mass
-    if not isRealData:
-        weights.add('trigweight',
-                    corrections['2017_trigweight_msd_pt'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
-                    corrections['2017_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
-                    corrections['2017_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd'], df['AK8Puppijet0_pt']),
-                    )
-
-    # muon CR weights
-    if not isRealData:
-        mu_abseta = np.abs(df['vmuoLoose0_eta'])
-        weights.add('mutrigweight',
-                    corrections['2017_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta),
-                    corrections['2017_mutrigweight_pt_abseta_mutrigweightShift'](df['vmuoLoose0_pt'], mu_abseta),
-                    shift=True
-                    )
-        weights.add('muidweight',
-                    corrections['2017_muidweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt']),
-                    corrections['2017_muidweight_abseta_pt_muidweightShift'](mu_abseta, df['vmuoLoose0_pt']),
-                    shift=True
-                    )
-        weights.add('muisoweight',
-                    corrections['2017_muisoweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt']),
-                    corrections['2017_muisoweight_abseta_pt_muisoweightShift'](mu_abseta, df['vmuoLoose0_pt']),
-                    shift=True
-                    )
-
     build_leading_ak8_variables(df)
     build_subleading_ak8_variables(df)
     build_ak4_variables(df)
@@ -220,6 +178,10 @@ def process(df):
     selection.add('jetKinematicsMuonCR', df['AK8Puppijet0_pt'] > 400.)
     selection.add('pfmet', df['pfmet'] < 140.)
 
+    regions = {}
+    regions['signalregion'] = {'trigger', 'n2ddtPass', 'noLeptons', 'jetKinematics', 'tightVjet', 'antiak4btagMediumOppHem'}
+    regions['muoncontrol'] = {'mutrigger', 'n2ddtPass', 'oneMuon', 'jetKinematicsMuonCR', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
+
     shiftSystematics = ['JESUp', 'JESDown', 'JERUp', 'JERDown']
     shiftedQuantities = {'AK8Puppijet0_pt', 'pfmet'}
     shiftedSelections = {'jetKinematics', 'jetKinematicsMuonCR', 'pfmet'}
@@ -228,9 +190,49 @@ def process(df):
         selection.add('jetKinematicsMuonCR'+syst, df['AK8Puppijet0_pt_'+syst] > 400.)
         selection.add('pfmet'+syst, df['pfmet_'+syst] < 140.)
 
-    regions = {}
-    regions['signalregion'] = {'trigger', 'n2ddtPass', 'noLeptons', 'jetKinematics', 'tightVjet', 'antiak4btagMediumOppHem'}
-    regions['muoncontrol'] = {'mutrigger', 'n2ddtPass', 'oneMuon', 'jetKinematicsMuonCR', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
+    weights = processor.Weights(df.size)
+
+    if not isRealData:
+        # SumWeights is sum(scale1fb), so we need to use full value here
+        weights.add('genweight', df['scale1fb'])
+
+    if dataset in corrections['2017_pileupweight_dataset']:
+        weights.add('pileupweight',
+                    corrections['2017_pileupweight_dataset'][dataset](df['npu']),
+                    corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
+                    corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
+                    )
+
+    if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
+        weights.add('kfactor', df['kfactorEWK'] * df['kfactorQCD'])
+        # TODO unc.
+
+    if not isRealData:
+        regionMask = lambda w: np.where(selection.all('noLeptons'), w, 1.)
+        weights.add('trigweight',
+                    regionMask(corrections['2017_trigweight_msd_pt'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                    regionMask(corrections['2017_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                    regionMask(corrections['2017_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                   )
+
+    if not isRealData:
+        regionMask = lambda w: np.where(selection.all('oneMuon'), w, 1.)
+        mu_abseta = np.abs(df['vmuoLoose0_eta'])
+        weights.add('mutrigweight',
+                    regionMask(corrections['2017_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta)),
+                    regionMask(corrections['2017_mutrigweight_pt_abseta_mutrigweightShift'](df['vmuoLoose0_pt'], mu_abseta)),
+                    shift=True
+                   )
+        weights.add('muidweight',
+                    regionMask(corrections['2017_muidweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
+                    regionMask(corrections['2017_muidweight_abseta_pt_muidweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
+                    shift=True
+                   )
+        weights.add('muisoweight',
+                    regionMask(corrections['2017_muisoweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
+                    regionMask(corrections['2017_muisoweight_abseta_pt_muisoweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
+                    shift=True
+                   )
 
     if test:
         print("Weight statistics:")
@@ -257,12 +259,12 @@ def process(df):
         elif 'nminus1' in histname:
             _, sel, region = histname.split('_')
             cut = regions[region] - {sel}
-            weight = weights.weight() * selection.all(cut)
+            weight = weights.weight() * selection.all(*cut)
             h.fill(**fields, weight=weight)
         elif len(region) == 1:
             region = region[0]
             weight = weights.weight()
-            cut = selection.all(regions[region])
+            cut = selection.all(*regions[region])
             h.fill(systematic="", **fields, weight=weight*cut)
             if 'systematic' in h.fields:
                 for syst in weights.variations:
@@ -270,7 +272,7 @@ def process(df):
                 for syst in shiftSystematics:
                     cut = {s for s in regions[region] if s not in shiftedSelections}
                     cut.update({s+syst for s in regions[region] if s in shiftedSelections})
-                    cut = selection.all(cut)
+                    cut = selection.all(*cut)
                     for val in shiftedQuantities:
                         fields[val] = df[val+'_'+syst]
                     h.fill(systematic=syst, **fields, weight=weight*cut)
@@ -398,9 +400,10 @@ def read_xsections(filename):
     return out
 
 
-# curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/DDB/analysis/ggH/xSections.dat
+# curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/newTF/analysis/ggH/xSections.dat
 xsections = read_xsections("metadata/xSections.dat")
-lumi = 41100  # [1/pb]
+# set everything to 1/fb scale
+lumi = 1000  # [1/pb]
 
 scale = {}
 sumw = final_accumulators.pop('sumw').values(overflow='all')
