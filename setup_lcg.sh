@@ -5,7 +5,7 @@ source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-slc6-gcc62-opt/setup.sh
 pip install --user uproot
 pip install --user --upgrade uproot-methods
 # 1.14 is kindof old but pinned by other packages it seems
-# pip install --user --upgrade numpy
+pip install --user --upgrade numpy
 
 # get dependencies for it
 pip install --user fnal-column-analysis-tools
