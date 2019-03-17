@@ -354,13 +354,8 @@ else:
         futures = set()
         samples = samplefiles['Hbb_create_2017']
         for group, datasets in samples.items():
-            if group == "data_obs":
-                # raw data, no norm. TODO: proper metadata
-                dataset = "JetHT" if "JetHT" in datasets[0] else "SingleMuon"
-                futures.update(executor.submit(processfile, dataset, file) for file in datasets)
-            elif isinstance(datasets, dict):
-                for dataset, files in datasets.items():
-                    futures.update(executor.submit(processfile, dataset, file) for file in files)
+            for dataset, files in datasets.items():
+                futures.update(executor.submit(processfile, dataset, file) for file in files)
         try:
             total = len(futures)
             processed = 0
