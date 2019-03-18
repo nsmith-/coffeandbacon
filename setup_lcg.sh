@@ -10,7 +10,7 @@ pip install --user --upgrade numpy
 # get dependencies for it
 pip install --user fnal-column-analysis-tools
 # get latest and greatest
-git clone git@github.com:CoffeaTeam/fnal-column-analysis-tools.git
+git clone -b processor git@github.com:CoffeaTeam/fnal-column-analysis-tools.git
 
 # progressbar, sliders, etc.
 jupyter nbextension enable --py widgetsnbextension

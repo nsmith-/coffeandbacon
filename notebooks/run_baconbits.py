@@ -17,7 +17,7 @@ import awkward
 import numpy as np
 from fnal_column_analysis_tools import hist, lookup_tools, processor
 
-test = False
+test = True
 
 if test:
     from pyinstrument import Profiler
