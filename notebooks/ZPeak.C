@@ -96,8 +96,8 @@ void ZPeak::Loop(TString dataset)
       b_Muon_tightId->GetEntry(ientry);
       b_Muon_pdgId->GetEntry(ientry);
       b_Muon_pfRelIso04_all->GetEntry(ientry);
-      b_HLT_Ele32_WPTight_Gsf_L1DoubleEG->GetEntry(ientry);
       b_HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ->GetEntry(ientry);
+      b_HLT_Ele32_WPTight_Gsf_L1DoubleEG->GetEntry(ientry);
       b_HLT_IsoMu24->GetEntry(ientry);
       b_HLT_IsoMu27->GetEntry(ientry);
       b_HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ->GetEntry(ientry);
