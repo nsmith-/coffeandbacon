@@ -17,7 +17,7 @@ import awkward
 import numpy as np
 from fnal_column_analysis_tools import hist, lookup_tools, processor
 
-test = True
+test = False
 
 if test:
     from pyinstrument import Profiler
@@ -59,17 +59,24 @@ doublecvb_coarse = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", doublecv
 
 accumulator_def = {}
 accumulator_def['sumw'] = hist.Hist("sumw", dataset, hist.Bin("sumw", "Weight value", [0.]))
-accumulator_def['hjetpt_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
-accumulator_def['hsculpt_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
-accumulator_def['htagtensor_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
+accumulator_def['jetpt_preselection'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
+accumulator_def['jeteta_preselection'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_eta", r"Jet $\eta$", 50, -3, 3), dtype='f')
+accumulator_def['jetpt_muoncontrol'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
+accumulator_def['muonpt_muoncontrol'] = hist.Hist("Events", dataset, gencat, hist.Bin("vmuoLoose0_pt", "Leading muon $p_T$", 100, 0, 1000), dtype='f')
+accumulator_def['muoneta_muoncontrol'] = hist.Hist("Events", dataset, gencat, hist.Bin("vmuoLoose0_eta", r"Leading muon $\eta$", 50, -3, 3), dtype='f')
+accumulator_def['jetpt_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
+accumulator_def['sculpt_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
+accumulator_def['tagtensor_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
 accumulator_def['opposite_ak8_n3sdb1_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_n3sdb1", r"Jet $N_{3,sd}^{\beta=1}$", 40, 0.5, 3))
 accumulator_def['opposite_ak8_tau32_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_tau32", r"Jet $\tau_{32}$", 40, 0, 1))
 accumulator_def['opposite_ak8_msd_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak8_msd", r"Jet $\m_{sd}$", 40, 50, 200))
-accumulator_def['opposite_ak4_leadingDeepCSV_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
 accumulator_def['njets_ak4_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("nAK4PuppijetsPt30", "Number AK4 Jets", 8, 0, 8))
 
+accumulator_def['nminus1_antiak4btagMediumOppHem_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, hist.Bin("opposite_ak4_leadingDeepCSV", "Max(DeepCSV) (of $\leq4$ leading)", 40, 0, 1))
 accumulator_def['nminus1_pfmet_signalregion'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, jetmass_coarse, doubleb_coarse, hist.Bin("pfmet", r"PF $p_{T}^{miss}$", 40, 0, 200))
-accumulator_def['nminus1_n2ddtPass_signalregion'] = hist.Hist("Events", dataset, gencat, jetmass_coarse, doubleb_coarse, hist.Bin("ak8jet_n2ddt", r"Jet $N_{2,DDT}^{\beta=1}$", 40, -1, 1))
+accumulator_def['nminus1_n2ddtPass_signalregion'] = hist.Hist("Events", dataset, gencat, jetmass_coarse, doubleb_coarse, hist.Bin("ak8jet_n2ddt", r"Jet $N_{2,DDT}^{\beta=1}$", 40, -.25, .25))
+accumulator_def['nminus1_ak4btagMediumDR08_muoncontrol'] = hist.Hist("Events", dataset, gencat, jetmass_coarse, doubleb_coarse, hist.Bin("ak4_leadingDeepCSV_dR08", r"Max(DeepCSV) ($\DeltaR(ak4, ak8)>0.8$)", 40, 0, 1))
+accumulator_def['nminus1_muonDphiAK8_muoncontrol'] = hist.Hist("Events", dataset, gencat, jetmass_coarse, doubleb_coarse, hist.Bin("muon_dphi", r"$\Delta\phi(\mu, j)$", 40, 0, np.pi))
 accumulator_def['templates_signalregion'] = hist.Hist("Events", dataset, gencat, hist.Cat("systematic", "Systematic"), jetpt, jetmass, doubleb_coarse)
 accumulator_def['templates_muoncontrol'] = hist.Hist("Events", dataset, gencat, hist.Cat("systematic", "Systematic"), jetpt, jetmass, doubleb_coarse)
 
@@ -78,6 +85,9 @@ accumulator_def['bytesread'] = 0
 accumulator_def['sumworktime'] = 0.
 accumulator_def['columns_accessed'] = set()
 
+
+def deltaphi(a, b):
+    return (a - b + np.pi)%(2*np.pi) - np.pi
 
 def clean(df, val, default, positive=False):
     if positive:
@@ -112,7 +122,7 @@ def subleading_n3(df):
 
 
 def build_subleading_ak8_variables(df):
-    dphi = np.abs(np.unwrap(df['AK8Puppijet1_phi'] - df['AK8Puppijet0_phi']))
+    dphi = np.abs(deltaphi(df['AK8Puppijet1_phi'], df['AK8Puppijet0_phi']))
     df['opposite_ak8_n3sdb1'] = np.where(dphi > np.pi/2., subleading_n3(df), np.inf)
     df['opposite_ak8_tau32'] = np.where(dphi > np.pi/2., df['AK8Puppijet1_tau32'], np.inf)
     df['opposite_ak8_msd'] = np.where(dphi > np.pi/2., df['AK8Puppijet1_msd'], np.inf)
@@ -152,6 +162,7 @@ def process(df):
     build_subleading_ak8_variables(df)
     build_ak4_variables(df)
     build_met_systematics(df)
+    df['muon_dphi'] = np.abs(deltaphi(df['vmuoLoose0_phi'], df['AK8Puppijet0_phi']))
 
     selection = processor.PackedSelection()
     if isRealData:
@@ -168,7 +179,7 @@ def process(df):
     selection.add('oneMuon', (df['neleLoose']==0) & (df['nmuLoose']==1) & (df['ntau']==0))
     selection.add('muonAcceptance', (df['vmuoLoose0_pt'] > 55.) & (np.abs(df['vmuoLoose0_eta']) < 2.1))
     selection.add('ak4btagMediumDR08', df['ak4_leadingDeepCSV_dR08'] > 0.4941)  # at least one passes medium cut
-    selection.add('muonDphiAK8', np.abs(np.unwrap(df['vmuoLoose0_phi'] - df['AK8Puppijet0_phi'])) > 2*np.pi/3)
+    selection.add('muonDphiAK8', df['muon_dphi'] > 2*np.pi/3)
     selection.add('antiak4btagMediumOppHem', df['opposite_ak4_leadingDeepCSV'] < 0.4941)  # none pass
     selection.add('tightVjet', df['AK8Puppijet0_isTightVJet'] != 0)
     selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
@@ -179,8 +190,9 @@ def process(df):
     selection.add('pfmet', df['pfmet'] < 140.)
 
     regions = {}
-    regions['signalregion'] = {'trigger', 'n2ddtPass', 'noLeptons', 'jetKinematics', 'tightVjet', 'antiak4btagMediumOppHem'}
-    regions['muoncontrol'] = {'mutrigger', 'n2ddtPass', 'oneMuon', 'jetKinematicsMuonCR', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
+    regions['preselection'] = {'trigger', 'noLeptons', 'jetKinematics'}
+    regions['signalregion'] = {'trigger', 'noLeptons', 'jetKinematics', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem'}
+    regions['muoncontrol'] = {'mutrigger', 'oneMuon', 'muonAcceptance', 'jetKinematicsMuonCR', 'n2ddtPass', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
 
     shiftSystematics = ['JESUp', 'JESDown', 'JERUp', 'JERDown']
     shiftedQuantities = {'AK8Puppijet0_pt', 'pfmet'}
