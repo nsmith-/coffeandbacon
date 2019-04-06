@@ -10,6 +10,7 @@
 #include <TROOT.h>
 #include <TChain.h>
 #include <TFile.h>
+#include <TH2.h>
 
 // Header file for the classes stored in the TTree if any.
 
@@ -82,6 +83,21 @@ public :
    virtual void     Loop(TString dataset);
    virtual Bool_t   Notify();
    virtual void     Show(Long64_t entry = -1);
+
+   bool isRealData_;
+   TString dataset_;
+   std::unique_ptr<TH2F> eleCorr_;
+   std::unique_ptr<TH2F> muCorr_;
+   std::unique_ptr<TH1D> puCorr_;
+
+   TH1D* mass_ee;
+   TH1D* mass_em;
+   TH1D* mass_mm;
+   TH2D* lepPt_ee;
+   TH2D* lepPt_em;
+   TH2D* lepPt_mm;
+
+   void actuallyProcess();
 };
 
 #endif
