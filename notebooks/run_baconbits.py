@@ -190,8 +190,8 @@ def process(df):
     selection.add('pfmet', df['pfmet'] < 140.)
 
     regions = {}
-    regions['preselection'] = {'trigger', 'noLeptons', 'jetKinematics'}
-    regions['signalregion'] = {'trigger', 'noLeptons', 'jetKinematics', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem'}
+    regions['preselection'] = {'trigger', 'noLeptons'}
+    regions['signalregion'] = {'trigger', 'noLeptons', 'jetKinematics', 'pfmet', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem'}
     regions['muoncontrol'] = {'mutrigger', 'oneMuon', 'muonAcceptance', 'jetKinematicsMuonCR', 'n2ddtPass', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
 
     shiftSystematics = ['JESUp', 'JESDown', 'JERUp', 'JERDown']
@@ -212,7 +212,7 @@ def process(df):
         weights.add('pileupweight',
                     corrections['2017_pileupweight_dataset'][dataset](df['npu']),
                     corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
-                    corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
+                    corrections['2017_pileupweight_dataset_puDown'][dataset](df['npu']),
                     )
 
     if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
@@ -220,14 +220,17 @@ def process(df):
         # TODO unc.
 
     if not isRealData:
+        # handle weight systematics for signal region
         regionMask = lambda w: np.where(selection.all('noLeptons'), w, 1.)
         weights.add('trigweight',
                     regionMask(corrections['2017_trigweight_msd_pt'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
                     regionMask(corrections['2017_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
                     regionMask(corrections['2017_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
                    )
+        vmatch = (np.abs(deltaphi(df['AK8Puppijet0_phi'], df['genVPhi'])) < 0.8) & (np.abs(df['AK8Puppijet0_pt']-df['genVPt'])/df['genVPt'] < 0.5) & (np.abs(df['AK8Puppijet0_msd']-df['genVMass'])/df['genVMass'] < 0.3)
+        weights.add('matched', np.ones(df.size, dtype='f'), vmatch.astype('f'), 1.-vmatch)
 
-    if not isRealData:
+        # handle weight systematics for muon CR
         regionMask = lambda w: np.where(selection.all('oneMuon'), w, 1.)
         mu_abseta = np.abs(df['vmuoLoose0_eta'])
         weights.add('mutrigweight',

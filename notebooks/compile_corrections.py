@@ -22,8 +22,8 @@ evaluator = extractor.make_evaluator()
 corrections['2017_n2ddt_rho_pt'] = evaluator['2017_n2ddt_Rho2D']
 corrections['2017_mutrigweight_pt_abseta'] = evaluator['2017_mutrigger_Mu50_PtEtaBins/efficienciesDATA/pt_abseta_DATA']
 corrections['2017_mutrigweight_pt_abseta_mutrigweightShift'] = evaluator['2017_mutrigger_Mu50_PtEtaBins/efficienciesDATA/pt_abseta_DATA_error']
-corrections['2017_muidweight_abseta_pt'] = evaluator['2017_muid_NUM_SoftID_DEN_genTracks/abseta_pt_value']
-corrections['2017_muidweight_abseta_pt_muidweightShift'] = evaluator['2017_muid_NUM_SoftID_DEN_genTracks/abseta_pt_error']
+corrections['2017_muidweight_abseta_pt'] = evaluator['2017_muid_NUM_LooseID_DEN_genTracks/abseta_pt_value']
+corrections['2017_muidweight_abseta_pt_muidweightShift'] = evaluator['2017_muid_NUM_LooseID_DEN_genTracks/abseta_pt_error']
 corrections['2017_muisoweight_abseta_pt'] = evaluator['2017_muiso_NUM_LooseRelIso_DEN_LooseID/abseta_pt_value']
 corrections['2017_muisoweight_abseta_pt_muisoweightShift'] = evaluator['2017_muiso_NUM_LooseRelIso_DEN_LooseID/abseta_pt_error']
 
