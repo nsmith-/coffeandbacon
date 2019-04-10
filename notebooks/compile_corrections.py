@@ -4,6 +4,7 @@ import gzip
 import cloudpickle
 import pickle
 import uproot
+import numexpr
 import numpy as np
 from fnal_column_analysis_tools import hist, lookup_tools
 from fnal_column_analysis_tools.hist import plot
@@ -140,6 +141,28 @@ triggerNames_2018 = {
 
 corrections['2018_triggerMask'] = triggermask(triggerNames_2018, trigger_bitmap)
 
+
+def read_xsections(filename):
+    out = {}
+    with open(filename) as fin:
+        for line in fin:
+            line = line.strip()
+            if len(line) == 0 or line[0] == '#':
+                continue
+            dataset, xsexpr, *_ = line.split()
+            try:
+                xs = float(numexpr.evaluate(xsexpr))
+            except:
+                print("numexpr evaluation failed for line: %s" % line)
+                raise
+            if xs <= 0:
+                warnings.warn("Cross section is <= 0 in line: %s" % line, RuntimeWarning)
+            out[dataset] = xs
+    return out
+
+
+# curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/newTF/analysis/ggH/xSections.dat
+corrections['xsections'] = read_xsections("metadata/xSections.dat")
 
 with gzip.open("corrections.cpkl.gz", "wb") as fout:
     cloudpickle.dump(corrections, fout)
