@@ -71,10 +71,10 @@ if __name__ == '__main__':
 
     if args.test:
         filelist = [
-            ("TTToHadronic_TuneCP5_13TeV_powheg_pythia8", "TTToHadronic_TuneCP5_13TeV_powheg_pythia8_0.root"),
-            ("TTToSemiLeptonic_TuneCP5_13TeV_powheg_pythia8", "TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8_0.root"),
-            ("JetHT", "JetHTRun2017F_17Nov2017_v1_24.rootnodupl.root"),
-            ("SingleMuon", "SingleMuonRun2017B_17Nov2017_v1_2.root"),
+            ("TTToHadronic_TuneCP5_13TeV_powheg_pythia8", "data/TTToHadronic_TuneCP5_13TeV_powheg_pythia8_0.root"),
+            ("TTToSemiLeptonic_TuneCP5_13TeV_powheg_pythia8", "data/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8_0.root"),
+            ("JetHT", "data/JetHTRun2017F_17Nov2017_v1_24.rootnodupl.root"),
+            ("SingleMuon", "data/SingleMuonRun2017B_17Nov2017_v1_2.root"),
         ]
     else:
         with open(args.samplejson) as fin:
