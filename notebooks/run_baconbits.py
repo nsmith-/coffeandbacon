@@ -1,148 +1,141 @@
 #!/usr/bin/env python
-from __future__ import print_function, division
-from collections import defaultdict, OrderedDict
-import concurrent.futures
 import gzip
 import pickle
 import json
 import time
-import numexpr
+import cloudpickle
+import argparse
 
 import uproot
 import numpy as np
-from fnal_column_analysis_tools import hist, lookup_tools
-
-with open("metadata/datadef.json") as fin:
-    datadef = json.load(fin)
-
-extractor = lookup_tools.extractor()
-extractor.add_weight_sets(["* * correction_files/n2ddt_transform_2017MC.root"])
-extractor.finalize()
-evaluator = extractor.make_evaluator()
-n2ddt_rho_pt = evaluator[b"Rho2D"]
-
-gpar = np.array([1.00626, -1.06161, 0.0799900, 1.20454])
-cpar = np.array([1.09302, -0.000150068, 3.44866e-07, -2.68100e-10, 8.67440e-14, -1.00114e-17])
-fpar = np.array([1.27212, -0.000571640, 8.37289e-07, -5.20433e-10, 1.45375e-13, -1.50389e-17])
-
-def msd_weight(pt, eta):
-    genw = gpar[0] + gpar[1]*np.power(pt*gpar[2], -gpar[3])
-    ptpow = np.power.outer(pt, np.arange(cpar.size))
-    cenweight = np.dot(ptpow, cpar)
-    forweight = np.dot(ptpow, fpar)
-    weight = np.where(np.abs(eta)<1.3, cenweight, forweight)
-    return weight
-
-# [pb]
-dataset_xs = {k: v['xs'] for k,v in datadef.items()}
-
-lumi = 1000.  # [1/pb]
-
-dataset = hist.Cat("dataset", "Primary dataset")
-
-gencat = hist.Bin("AK8Puppijet0_isHadronicV", "Matched", 4, 0., 4)
-# one can relabel intervals, although process mapping obviates this
-titles = ["QCD", "V(light) matched", "V(c) matched", "V(b) matched"]
-for i,v in enumerate(gencat.identifiers()):
-    setattr(v, 'label', titles[i])
-
-jetpt = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 500, 550, 600, 675, 800, 1000])
-jetpt_coarse = hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", [450, 800])
-jetmass = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", 23, 40, 201)
-jetmass_coarse = hist.Bin("AK8Puppijet0_msd", "Jet $m_{sd}$", [40, 100, 140, 200])
-jetrho = hist.Bin("jetrho", r"Jet $\rho$", 13, -6, -2.1)
-doubleb = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", 20, 0., 1)
-doublec = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", 20, 0., 1.)
-doublecvb = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", 20, 0., 1.)
-doubleb_coarse = [1., 0.93, 0.92, 0.89, 0.85, 0.7]
-doubleb_coarse = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", doubleb_coarse[::-1])
-doublec_coarse = [0.87, 0.84, 0.83, 0.79, 0.69, 0.58]
-doublec_coarse = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", doublec_coarse[::-1])
-doublecvb_coarse = [0.93, 0.91, 0.86, 0.76, 0.6, 0.17, 0.12]
-doublecvb_coarse = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", doublecvb_coarse[::-1])
-n2ddt = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", 20, -0.25, 0.25)
-n2ddt_coarse = hist.Bin("AK8Puppijet0_N2sdb1_ddt", "N2 DDT", [-0.1, 0.])
-
-hists = {}
-hists['hjetpt'] = hist.Hist("Events", dataset, gencat, hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300), dtype='f')
-hists['htagtensor'] = hist.Hist("Events", dataset, gencat, jetpt_coarse, n2ddt_coarse, jetmass_coarse, doubleb, doublec, doublecvb, dtype='f')
-hists['hsculpt'] = hist.Hist("Events", dataset, gencat, jetpt, jetmass, n2ddt, doubleb_coarse, doublec_coarse, doublecvb_coarse, dtype='f')
-
-branches = [
-    "AK8Puppijet0_pt",
-    "AK8Puppijet0_eta",
-    "AK8Puppijet0_msd",
-    "AK8Puppijet0_isHadronicV",
-    "AK8Puppijet0_deepdoubleb",
-    "AK8Puppijet0_deepdoublec",
-    "AK8Puppijet0_deepdoublecvb",
-    "AK8Puppijet0_N2sdb1",
-]
-
-tstart = time.time()
+from fnal_column_analysis_tools import hist, processor
 
 
-for h in hists.values(): h.clear()
-nevents = defaultdict(lambda: 0.)
+# instrument xrootd source
+def _read(self, chunkindex):
+    self.bytesread = getattr(self, 'bytesread', 0) + self._chunkbytes
+    return self._read_real(chunkindex)
 
 
-def processfile(dataset, file):
-    # Many 'invalid value encountered in ...' due to pt and msd sometimes being zero
-    # This will just fill some NaN bins in the histogram, which is fine
-    tree = uproot.open(file)["Events"]
-    arrays = tree.arrays(branches, namedecode='ascii')
-    arrays["AK8Puppijet0_msd"] *= msd_weight(arrays["AK8Puppijet0_pt"], arrays["AK8Puppijet0_eta"])
-    arrays["jetrho"] = 2*np.log(arrays["AK8Puppijet0_msd"]/arrays["AK8Puppijet0_pt"])
-    arrays["AK8Puppijet0_N2sdb1_ddt"] = arrays["AK8Puppijet0_N2sdb1"] - n2ddt_rho_pt(arrays["jetrho"], arrays["AK8Puppijet0_pt"])
-    hout = {}
-    for k in hists.keys():
-        h = hists[k].copy(content=False)
-        h.fill(dataset=dataset, **arrays)
-        hout[k] = h
-    return dataset, tree.numentries, hout
+uproot.source.xrootd.XRootDSource._read_real = uproot.source.xrootd.XRootDSource._read
+uproot.source.xrootd.XRootDSource._read = _read
 
 
-nworkers = 10
-#fileslice = slice(None, 5)
-fileslice = slice(None)
-#with concurrent.futures.ThreadPoolExecutor(max_workers=nworkers) as executor:
-with concurrent.futures.ProcessPoolExecutor(max_workers=nworkers) as executor:
-    futures = set()
-    for dataset, info in datadef.items():
-        futures.update(executor.submit(processfile, dataset, file) for file in info['files'][fileslice])
-    try:
-        total = len(futures)
-        processed = 0
-        while len(futures) > 0:
-            finished = set(job for job in futures if job.done())
-            for job in finished:
-                dataset, nentries, hout = job.result()
-                nevents[dataset] += nentries
-                for k in hout.keys():
-                    hists[k] += hout[k]
-                processed += 1
-                print("Processing: done with % 4d / % 4d files" % (processed, total))
-            futures -= finished
-        del finished
-    except KeyboardInterrupt:
-        print("Ok quitter")
-        for job in futures: job.cancel()
-    except:
-        for job in futures: job.cancel()
-        raise
+def process_file(dataset, file, processor_instance, stats_accumulator, preload_items=None):
+    fin = uproot.open(file)
+    skim_sumw = None
+    if 'otree' in fin:
+        tree = fin['otree']
+        if 'SumWeights' in fin:
+            skim_sumw = fin['SumWeights'].values[0]
+    else:
+        tree = fin['Events']
 
-scale = dict((ds, lumi * dataset_xs[ds] / nevents[ds]) for ds in nevents.keys())
-for h in hists.values(): h.scale(scale, axis="dataset")
+    tic = time.time()
 
-dt = time.time() - tstart
-print("%.2f us*cpu/event" % (1e6*dt*nworkers/sum(nevents.values()), ))
-nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in hists.values())
-nfilled = sum(sum(np.sum(arr>0) for arr in h._sumw.values()) for h in hists.values())
-print("Processed %.1fM events" % (sum(nevents.values())/1e6, ))
-print("Filled %.1fM bins" % (nbins/1e6, ))
-print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
+    output = processor_instance.accumulator.identity()
+    # would be cool to use columns_accessed and work time to dynamically optimize this
+    stride = 500000
+    for index in range(tree.numentries//stride + 1):
+        df = processor.DataFrame(tree, stride, index, preload_items=preload_items)
+        df['dataset'] = dataset
+        # hacky way to only accumulate file-level information once
+        df['skim_sumw'] = skim_sumw if index == 0 else None
+        output += processor_instance.process(df)
 
-# Pickle is not very fast or memory efficient, will be replaced by something better soon
-with gzip.open("hists.pkl.gz", "wb") as fout:
-    pickle.dump(hists, fout)
+    toc = time.time()
 
+    stats = stats_accumulator.identity()
+    stats['nentries'] += tree.numentries
+    stats['bytesread'] += fin.source.bytesread if isinstance(fin.source, uproot.source.xrootd.XRootDSource) else 0
+    stats['sumworktime'] += toc-tic
+    stats['columns_accessed'] += df.materialized
+    return output, stats
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor cloudpickle files')
+    parser.add_argument('--processor', default='boostedHbbProcessor.cpkl.gz', help='The name of the compiled processor file')
+    parser.add_argument('--output', default='hists.pkl.gz', help='Output histogram filename')
+    parser.add_argument('--samplejson', default='metadata/samplefiles.json', help='JSON file containing dataset and file locations')
+    parser.add_argument('--sample', default='Hbb_create_2017', help='The sample to use in the sample JSON')
+    parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
+    parser.add_argument('--test', action='store_true', help='Process the test files defined in this execuatble')
+    parser.add_argument('--executor', choices=['iterative', 'futures'], default='iterative', help='The type of executor to use')
+    parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor)')
+    parser.add_argument('--profile-out', dest='profilehtml', default=None, help='Filename for the pyinstrument HTML profile output')
+    args = parser.parse_args()
+
+    # Set a list of preloaded columns, to profile the execution separately from the uproot deserialization
+    preload_items = {}
+
+    if args.test:
+        filelist = [
+            ("TTToHadronic_TuneCP5_13TeV_powheg_pythia8", "data/TTToHadronic_TuneCP5_13TeV_powheg_pythia8_0.root"),
+            ("TTToSemiLeptonic_TuneCP5_13TeV_powheg_pythia8", "data/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8_0.root"),
+            ("JetHT", "data/JetHTRun2017F_17Nov2017_v1_24.rootnodupl.root"),
+            ("SingleMuon", "data/SingleMuonRun2017B_17Nov2017_v1_2.root"),
+        ]
+    else:
+        with open(args.samplejson) as fin:
+            samplefiles = json.load(fin)
+        samples = samplefiles[args.sample]
+        filelist = []
+        for group, datasets in samples.items():
+            for dataset, files in datasets.items():
+                for file in files[:args.limit]:
+                    filelist.append((dataset, file))
+
+    with gzip.open(args.processor, "rb") as fin:
+        processor_instance = cloudpickle.load(fin)
+
+    combined_accumulator = processor.dict_accumulator({
+        'stats': processor.dict_accumulator({
+            'nentries': processor.accumulator(0),
+            'bytesread': processor.accumulator(0),
+            'sumworktime': processor.accumulator(0.),
+            'columns_accessed': processor.set_accumulator(),
+        }),
+        'job': processor_instance.accumulator.identity(),
+    })
+
+    def work_function(item):
+        dataset, file = item
+        out, stats = process_file(dataset, file, processor_instance, combined_accumulator['stats'], preload_items)
+        return processor.dict_accumulator({'stats': stats, 'job': out})
+
+    tstart = time.time()
+    if args.executor == 'iterative':
+        if args.profilehtml is not None:
+            from pyinstrument import Profiler
+            profiler = Profiler()
+            profiler.start()
+        processor.iterative_executor(filelist, work_function, combined_accumulator)
+        if args.profilehtml is not None:
+            profiler.stop()
+            with open(args.profilehtml, "w") as fout:
+                fout.write(profiler.output_html())
+    elif args.executor == 'futures':
+        processor.futures_executor(filelist, work_function, combined_accumulator, workers=args.workers)
+
+    final_accumulator = combined_accumulator['job']
+    stats = combined_accumulator['stats']
+    processor_instance.postprocess(final_accumulator)
+
+    print("Columns accessed:", set(stats['columns_accessed']))
+    print("%.2f us*cpu/event work time" % (1e6*stats['sumworktime'].value/stats['nentries'].value, ))
+    print("Processed %.1fM events" % (stats['nentries'].value/1e6, ))
+    print("Read %.1fM bytes" % (stats['bytesread'].value/1e6, ))
+
+    nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in final_accumulator.values() if isinstance(h, hist.Hist))
+    nfilled = sum(sum(np.sum(arr > 0) for arr in h._sumw.values()) for h in final_accumulator.values() if isinstance(h, hist.Hist))
+    print("Filled %.1fM bins" % (nbins/1e6, ))
+    print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
+
+    # Pickle is not very fast or memory efficient, will be replaced by something better soon
+    with gzip.open(args.output, "wb") as fout:
+        pickle.dump(final_accumulator, fout)
+
+    dt = time.time() - tstart
+    nworkers = 1 if args.executor == 'iterative' else args.workers
+    print("%.2f us*cpu/event overall" % (1e6*dt*nworkers/stats['nentries'].value, ))
