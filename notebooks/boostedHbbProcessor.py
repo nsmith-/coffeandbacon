@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import gzip
 import cloudpickle
 import pprint
