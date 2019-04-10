@@ -83,7 +83,7 @@ if __name__ == '__main__':
         filelist = []
         for group, datasets in samples.items():
             for dataset, files in datasets.items():
-                for file in files[:]:
+                for file in files[:args.limit]:
                     filelist.append((dataset, file))
 
     with gzip.open(args.processor, "rb") as fin:
