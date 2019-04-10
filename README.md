@@ -14,7 +14,7 @@ On future use at LPC, run `source env_lcg.sh`.
 
 ## Running the Hbb analysis
 The following recipe runs all the relevant code to produce templates similar to those of `sampleContainer`:
-```python
+```bash
 cd analysis
 ./compile_corrections.py
 ./boostedHbbProcessor.py
