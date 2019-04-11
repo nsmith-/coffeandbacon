@@ -79,14 +79,16 @@ for proc in processes:
     figures.append(fig)
 
 # close the windows to exit
-#plt.show()
-fig,ax = plt.subplots()
-spos = axes[2].edges(overflow='all')
-sprof = np.max(np.max(signif, axis=0), axis=0)[::-1]
-ax.step(x=spos[:-1], y=sprof, where='post')
-ax.set_xlim(0,1)
-ax.autoscale(axis='y')
-ax.set_xlabel("Deep double-cvb value")
-ax.set_ylabel(r"$S/\sqrt{B+1}$")
-lumi = ax.text(1., 1., r"%.1f fb$^{-1}$ (13 TeV)" % lumi, fontsize=14, horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes)
-fig.show()
+plt.show()
+
+if False:
+    fig,ax = plt.subplots()
+    spos = axes[2].edges(overflow='all')
+    sprof = np.max(np.max(signif, axis=0), axis=0)[::-1]
+    ax.step(x=spos[:-1], y=sprof, where='post')
+    ax.set_xlim(0,1)
+    ax.autoscale(axis='y')
+    ax.set_xlabel("Deep double-cvb value")
+    ax.set_ylabel(r"$S/\sqrt{B+1}$")
+    lumi = ax.text(1., 1., r"%.1f fb$^{-1}$ (13 TeV)" % lumi, fontsize=14, horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes)
+    fig.show()
