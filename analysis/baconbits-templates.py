@@ -2,7 +2,8 @@
 from __future__ import print_function, division
 from collections import defaultdict
 import gzip
-import pickle
+import lz4.frame as lz4f
+import cloudpickle as cpkl
 import json
 import re
 import os
@@ -14,8 +15,8 @@ from fnal_column_analysis_tools import hist
 from fnal_column_analysis_tools.hist import export
 import processmap
 
-with gzip.open("hists.pkl.gz") as fin:
-    hists_unmapped = pickle.load(fin)
+with lz4f.open("hists.cpkl.lz4") as fin:
+    hists_unmapped = cpkl.load(fin)
 
 
 hists = {}

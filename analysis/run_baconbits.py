@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import gzip
+import lz4.frame as lz4f
 import pickle
 import json
 import time
@@ -55,8 +55,8 @@ def process_file(dataset, file, processor_instance, stats_accumulator, preload_i
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor cloudpickle files')
-    parser.add_argument('--processor', default='boostedHbbProcessor.cpkl.gz', help='The name of the compiled processor file')
-    parser.add_argument('--output', default='hists.pkl.gz', help='Output histogram filename')
+    parser.add_argument('--processor', default='boostedHbbProcessor.cpkl.lz4', help='The name of the compiled processor file')
+    parser.add_argument('--output', default='hists.cpkl.lz4', help='Output histogram filename')
     parser.add_argument('--samplejson', default='metadata/samplefiles.json', help='JSON file containing dataset and file locations')
     parser.add_argument('--sample', default='Hbb_create_2017', help='The sample to use in the sample JSON')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
@@ -86,7 +86,7 @@ if __name__ == '__main__':
                 for file in files[:args.limit]:
                     filelist.append((dataset, file))
 
-    with gzip.open(args.processor, "rb") as fin:
+    with lz4f.open(args.processor, mode="rb") as fin:
         processor_instance = cloudpickle.load(fin)
 
     combined_accumulator = processor.dict_accumulator({
@@ -133,8 +133,8 @@ if __name__ == '__main__':
     print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
 
     # Pickle is not very fast or memory efficient, will be replaced by something better soon
-    with gzip.open(args.output, "wb") as fout:
-        pickle.dump(final_accumulator, fout)
+    with lz4f.open(args.output, mode="wb", compression_level=5) as fout:
+        cloudpickle.dump(final_accumulator, fout)
 
     dt = time.time() - tstart
     nworkers = 1 if args.executor == 'iterative' else args.workers

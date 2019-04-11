@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 import json
 import gzip
-import cloudpickle
+import lz4.frame as lz4f
+import cloudpickle as cpkl
 import pickle
 import uproot
 import numexpr
@@ -164,5 +165,5 @@ def read_xsections(filename):
 # curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/newTF/analysis/ggH/xSections.dat
 corrections['xsections'] = read_xsections("metadata/xSections.dat")
 
-with gzip.open("corrections.cpkl.gz", "wb") as fout:
-    cloudpickle.dump(corrections, fout)
+with lz4f.open("corrections.cpkl.lz4", mode="wb", compression_level=5 ) as fout:
+    cpkl.dump(corrections, fout)

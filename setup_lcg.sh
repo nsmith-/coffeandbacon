@@ -2,8 +2,8 @@
 
 source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-slc6-gcc62-opt/setup.sh
 
-pip install --user uproot
-pip install --user --upgrade uproot-methods
+pip install --user uproot lz4
+pip install --user --upgrade uproot-methods cloudpickle
 # 1.14 is kindof old but pinned by other packages it seems
 pip install --user --upgrade numpy
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import gzip
+import lz4.frame as lz4f
 import cloudpickle
 import pprint
 import numpy as np
@@ -174,10 +174,12 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         return self._accumulator
 
     def clean(self, df, val, default, positive=False):
+        temp = df[val].copy()
         if positive:
-            df[val][np.isnan(df[val])|(df[val]<=0.)] = default
+            temp[np.isnan(df[val])|(df[val]<=0.)] = default
         else:
-            df[val][np.isnan(df[val])|(df[val]==-999.)] = default
+            temp[np.isnan(df[val])|(df[val]==-999.)] = default
+        df[val] = temp
 
     def build_leading_ak8_variables(self, df):
         # jet |eta|<2.5 sometimes gives no events
@@ -393,10 +395,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
 
 if __name__ == '__main__':
-    with gzip.open("corrections.cpkl.gz", "rb") as fin:
+    with lz4f.open("corrections.cpkl.lz4", mode="rb") as fin:
         corrections = cloudpickle.load(fin)
 
     processor_instance = BoostedHbbProcessor(corrections=corrections)
 
-    with gzip.open('boostedHbbProcessor.cpkl.gz', 'wb') as fout:
+    with lz4f.open('boostedHbbProcessor.cpkl.lz4', mode='wb', compression_level=5 ) as fout:
         cloudpickle.dump(processor_instance, fout)
