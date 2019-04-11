@@ -12,7 +12,7 @@ source setup_lcg.sh
 ```
 On future use at LPC, run `source env_lcg.sh`.
 
-## Running the Hbb analysis
+## Running the Hbb analysis on baconbits
 The following recipe runs all the relevant code to produce templates similar to those of `sampleContainer`:
 ```bash
 cd analysis
@@ -23,6 +23,12 @@ python baconbits-templates.py
 python convert2d.py
 ls hist_1DZbb*
 ```
+This will take about 25 minutes to run.  To just get your feet wet, look at `./run_baconbits.py --help`, then run
+```bash
+./download_testbits.sh
+./run_baconbits.py --test
+```
+which will not take much time.
 
 ## Plots with jupyter
 To use jupyter on a laptop, `jupyter notebook` should work.
@@ -30,4 +36,5 @@ To use juptyer at LPC, start a notebook server with, e.g. `jupyter notebook --no
 substituing your favorite port: pick a random integer in (8000,65535).
 Often, you'll need an ssh tunnel, which can be accomplished via, e.g. `ssh -L $PORT:localhost:$PORT server.address`
 
-Check out some of the notebooks in the analysis directory.
+Check out some of the notebooks in the analysis directory.  Most will need `hists.pkl.gz` as created by `run_baconbits.py`,
+but the top background notebook can be run after downloading the test baconbits.
