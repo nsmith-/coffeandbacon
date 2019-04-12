@@ -34,10 +34,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
         hists = processor.dict_accumulator()
         hist.Hist.DEFAULT_DTYPE = 'f'  # save some space by keeping float bin counts instead of double
-        hists['sumw'] = hist.Hist("sumw",
-                                  dataset_axis,
-                                  hist.Bin("sumw", "Weight value", [0.])
-                                  )
+        hists['sumw'] = processor.dict_accumulator()  # the defaultdict_accumulator is broken :<
         hists['jetpt_preselection'] = hist.Hist("Events",
                                                 dataset_axis,
                                                 gencat_axis,
@@ -340,16 +337,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             fields = {k: df[k] for k in h.fields if k in df}
             region = [r for r in regions.keys() if r in histname]
 
-            if histname == 'sumw':
-                if isRealData:
-                    pass
-                elif 'skim_sumw' in df:
-                    # hacky way to only accumulate file-level information once
-                    if df['skim_sumw'] is not None:
-                        h.fill(dataset=dataset, sumw=1, weight=df['skim_sumw'])
-                else:
-                    h.fill(dataset=dataset, sumw=df['scale1fb'])
-            elif 'nminus1' in histname:
+            if 'nminus1' in histname:
                 _, sel, region = histname.split('_')
                 cut = regions[region] - {sel}
                 weight = weights.weight() * selection.all(*cut)
@@ -374,6 +362,14 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             else:
                 raise ValueError("Histogram '%s' does not fall into any region definitions." % (histname, ))
 
+        if not isRealData:
+            if dataset not in hout['sumw']:
+                hout['sumw'][dataset] = processor.accumulator(0.)
+            if 'skim_sumw' in df:
+                # hacky way to only accumulate file-level information once
+                hout['sumw'][dataset] += df['skim_sumw']
+            else:
+                hout['sumw'][dataset] += np.sum(df['scale1fb'])
         return hout
 
     def postprocess(self, accumulator):
@@ -381,11 +377,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         lumi = 1000  # [1/pb]
 
         scale = {}
-        sumw = accumulator.pop('sumw').values(overflow='all')
-        for (dataset,), dataset_sumw in sumw.items():
-            if self._debug:
-                print(dataset, dataset_sumw)
-            scale[dataset] = lumi*self._corrections['xsections'][dataset]/(dataset_sumw[1] - dataset_sumw[0])
+        for dataset, dataset_sumw in accumulator['sumw'].items():
+            scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw.value
 
         for h in accumulator.values():
             if isinstance(h, hist.Hist):
