@@ -37,7 +37,7 @@ def process_file(dataset, file, processor_instance, stats_accumulator, preload_i
     # would be cool to use columns_accessed and work time to dynamically optimize this
     stride = 500000
     for index in range(tree.numentries//stride + 1):
-        df = processor.DataFrame(tree, stride, index, preload_items=preload_items)
+        df = processor.LazyDataFrame(tree, stride, index, preload_items=preload_items)
         df['dataset'] = dataset
         # hacky way to only accumulate file-level information once
         df['skim_sumw'] = skim_sumw if index == 0 else None
