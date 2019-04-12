@@ -343,9 +343,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             if histname == 'sumw':
                 if isRealData:
                     pass
-                elif df.get('skim_sumw', None) is not None:
+                elif 'skim_sumw' in df:
                     # hacky way to only accumulate file-level information once
-                    h.fill(dataset=dataset, sumw=1, weight=df['skim_sumw'])
+                    if df['skim_sumw'] is not None:
+                        h.fill(dataset=dataset, sumw=1, weight=df['skim_sumw'])
                 else:
                     h.fill(dataset=dataset, sumw=df['scale1fb'])
             elif 'nminus1' in histname:

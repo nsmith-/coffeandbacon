@@ -40,7 +40,8 @@ def process_file(dataset, file, processor_instance, stats_accumulator, preload_i
         df = processor.LazyDataFrame(tree, stride, index, preload_items=preload_items)
         df['dataset'] = dataset
         # hacky way to only accumulate file-level information once
-        df['skim_sumw'] = skim_sumw if index == 0 else None
+        if 'otree' in fin:
+            df['skim_sumw'] = skim_sumw if index == 0 else None
         output += processor_instance.process(df)
 
     toc = time.time()

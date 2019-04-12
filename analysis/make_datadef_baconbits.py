@@ -13,9 +13,9 @@ import difflib
 uproot_xrootd_opts = dict(chunkbytes=30*1024, limitbytes=20*(1024**2))
 fnaleos = "root://cmseos.fnal.gov/"
 dazsle_root = "/eos/uscms/store/user/lpcbacon/dazsle/zprimebits-v15.01"
-patterns = ["QCD*", "WJetsToQQ*", "ZJets*", "GluGluHToBB*LHEHpT*", "GluGluHToCC*LHEHpT*", "TTTo*", "ST_*"]
+patterns = ["ZJetsToQQ_HT600to800_qc1*"]
 #patterns = ["WJetsToLNu*"]
-getentries = True
+getentries = False
 
 def read_xsections(filename):
     out = {}
@@ -92,11 +92,11 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             print("    Total entries: %d" % nentries.sum())
             print("    Avg. entries: %.0f" % (nentries.sum()/nentries.size))
             print("    Effective lumi (assuming weight=1): %.0f /pb" % (nentries.sum()/xs))
-        datadef[dataset] = {
-            'files': urllist,
-            'xs': xs,
-        }
+        datadef[dataset] = urllist
 
+samples = {
+    'datadef': datadef
+}
 with open("metadata/datadef.json", "w") as fout:
-    json.dump(datadef, fout, indent=4)
+    json.dump(samples, fout, indent=4)
 

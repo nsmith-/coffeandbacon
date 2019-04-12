@@ -2,7 +2,7 @@
 import json
 import gzip
 import lz4.frame as lz4f
-import cloudpickle as cpkl
+import cloudpickle
 import pickle
 import uproot
 import numexpr
@@ -44,8 +44,8 @@ def msd_weight(pt, eta):
 corrections['msdweight'] = msd_weight
 
 
-with gzip.open("correction_files/pileup_mc.pkl.gz", "rb") as fin:
-    pileup_corr = pickle.load(fin)
+with lz4f.open("correction_files/pileup_mc.cpkl.lz4", "rb") as fin:
+    pileup_corr = cloudpickle.load(fin)
 
 with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Collisions17_withVar.root") as fin_pileup:
     norm = lambda x: x / x.sum()
@@ -56,7 +56,7 @@ with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Co
     pileup_corr_puUp = {}
     pileup_corr_puDown = {}
     for k in pileup_corr.keys():
-        mc_pu = norm(pileup_corr[k])
+        mc_pu = norm(pileup_corr[k].value)
         mask = mc_pu > 0.
         corr = data_pu.copy()
         corr_puUp = data_pu_puUp.copy()
@@ -166,4 +166,4 @@ def read_xsections(filename):
 corrections['xsections'] = read_xsections("metadata/xSections.dat")
 
 with lz4f.open("corrections.cpkl.lz4", mode="wb", compression_level=5 ) as fout:
-    cpkl.dump(corrections, fout)
+    cloudpickle.dump(corrections, fout)
