@@ -388,7 +388,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                 hout['sumw'][dataset] = processor.accumulator(0.)
             if 'skim_sumw' in df:
                 # hacky way to only accumulate file-level information once
-                hout['sumw'][dataset] += df['skim_sumw']
+                if df['skim_sumw'] is not None:
+                    hout['sumw'][dataset] += df['skim_sumw']
             else:
                 hout['sumw'][dataset] += np.sum(df['scale1fb'])
         return hout
