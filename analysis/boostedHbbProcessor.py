@@ -164,6 +164,22 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                    jetmass_axis,
                                                    doubleb_coarse_axis
                                                    )
+        hists['templates_hCCsignalregion'] = hist.Hist("Events",
+                                                    dataset_axis,
+                                                    gencat_axis,
+                                                    hist.Cat("systematic", "Systematic"),
+                                                    jetpt_axis,
+                                                    jetmass_axis,
+                                                    doublec_coarse_axis
+                                                    )
+        hists['templates_hCCmuoncontrol'] = hist.Hist("Events",
+                                                   dataset_axis,
+                                                   gencat_axis,
+                                                   hist.Cat("systematic", "Systematic"),
+                                                   jetpt_axis,
+                                                   jetmass_axis,
+                                                   doublec_coarse_axis
+                                                   )
         self._accumulator = hists
 
     @property
@@ -190,6 +206,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         self.clean(df, 'AK8Puppijet0_pt_JERUp', 1e-3)
         self.clean(df, 'AK8Puppijet0_pt_JERDown', 1e-3)
         self.clean(df, 'AK8Puppijet0_deepdoubleb', -1.)
+        self.clean(df, 'AK8Puppijet0_deepdoublec', -1.)
+        self.clean(df, 'AK8Puppijet0_deepdoublecvb', -1.)
         df['AK8Puppijet0_msd_raw'] = df['AK8Puppijet0_msd']
         # for very large pt values, correction can become negative
         df['AK8Puppijet0_msd'] = np.maximum(1e-7, df['AK8Puppijet0_msd']*self._corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
@@ -261,6 +279,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         selection.add('tightVjet', df['AK8Puppijet0_isTightVJet'] != 0)
         selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
         selection.add('jetMass', df['AK8Puppijet0_msd'] > 40.)
+        selection.add('deepcvb', df['AK8Puppijet0_deepdoublecvb'] > 0.2)
 
         selection.add('jetKinematics', df['AK8Puppijet0_pt'] > 450.)
         selection.add('jetKinematicsMuonCR', df['AK8Puppijet0_pt'] > 400.)
@@ -270,6 +289,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         regions['preselection'] = {'trigger', 'noLeptons'}
         regions['signalregion'] = {'trigger', 'noLeptons', 'jetKinematics', 'pfmet', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem'}
         regions['muoncontrol'] = {'mutrigger', 'oneMuon', 'muonAcceptance', 'jetKinematicsMuonCR', 'n2ddtPass', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
+        regions['hCCsignalregion'] = {'trigger', 'noLeptons', 'jetKinematics', 'pfmet', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem', 'deepcvb'}
+        regions['hCCmuoncontrol'] = {'mutrigger', 'oneMuon', 'muonAcceptance', 'jetKinematicsMuonCR', 'n2ddtPass', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8', 'deepcvb'}
 
         shiftSystematics = ['JESUp', 'JESDown', 'JERUp', 'JERDown']
         shiftedQuantities = {'AK8Puppijet0_pt', 'pfmet'}
@@ -335,7 +356,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             if not isinstance(h, hist.Hist):
                 continue
             fields = {k: df[k] for k in h.fields if k in df}
-            region = [r for r in regions.keys() if r in histname]
+            region = [r for r in regions.keys() if r in histname.split('_')]
 
             if 'nminus1' in histname:
                 _, sel, region = histname.split('_')
