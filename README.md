@@ -26,7 +26,7 @@ ls hist_1DZbb*
 This will take about 25 minutes to run.  To just get your feet wet, look at `./run_baconbits.py --help`, then run
 ```bash
 ./download_testbits.sh
-./run_baconbits.py --test
+./run_baconbits.py --sample test_bits
 ```
 which will not take much time.
 
