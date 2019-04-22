@@ -1,4 +1,6 @@
 import ROOT
+ROOT.PyConfig.IgnoreCommandLineOptions = True
+ROOT.gROOT.SetBatch(True)
 import re
 import numpy as np
 
