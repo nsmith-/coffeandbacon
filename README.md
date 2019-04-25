@@ -12,6 +12,19 @@ source setup_lcg.sh
 ```
 On future use at LPC, run `source env_lcg.sh`.
 
+### Conda setup
+```
+# Install conda if you don't have it
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+```
+``` 
+# Install the environment (might take a while, contains its own ROOT)
+conda-env create -n coffee -f=coffee.yml
+conda activate coffee
+```
+Afterwards activating the environemnt should be enough
+
 ## Running the Hbb analysis on baconbits
 The following recipe runs all the relevant code to produce templates similar to those of `sampleContainer`:
 ```bash
