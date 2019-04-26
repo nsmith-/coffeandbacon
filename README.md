@@ -20,8 +20,8 @@ bash Miniconda3-latest-Linux-x86_64.sh
 ```
 ``` 
 # Install the environment (might take a while, contains its own ROOT)
-conda-env create -n coffee -f=coffee.yml
-conda activate coffee
+conda-env create -n coffea -f=coffea.yml
+conda activate coffea
 ```
 Afterwards activating the environemnt should be enough
 
