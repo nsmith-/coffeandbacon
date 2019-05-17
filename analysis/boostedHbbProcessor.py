@@ -11,7 +11,8 @@ def deltaphi(a, b):
 
 
 class BoostedHbbProcessor(processor.ProcessorABC):
-    def __init__(self, corrections, debug=False):
+    def __init__(self, corrections, columns=[], debug=False):
+        self._columns = columns
         self._corrections = corrections
         self._debug = debug
 
@@ -181,6 +182,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                    doublec_coarse_axis
                                                    )
         self._accumulator = hists
+
+    @property
+    def columns(self):
+        return self._columns
 
     @property
     def accumulator(self):
@@ -398,10 +403,14 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         # set everything to 1/fb scale
         lumi = 1000  # [1/pb]
 
+        normlist = self._corrections['sumw_external']
+        for key in accumulator['sumw'].keys():
+            accumulator['sumw'][key].value = normlist[key].value
+
         scale = {}
         for dataset, dataset_sumw in accumulator['sumw'].items():
             scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw.value
-
+            
         for h in accumulator.values():
             if isinstance(h, hist.Hist):
                 h.scale(scale, axis="dataset")
@@ -413,7 +422,10 @@ if __name__ == '__main__':
     with lz4f.open("corrections.cpkl.lz4", mode="rb") as fin:
         corrections = cloudpickle.load(fin)
 
-    processor_instance = BoostedHbbProcessor(corrections=corrections)
+    from columns import gghbbcolumns, gghbbcolumns_mc
+    allcolumns = gghbbcolumns + gghbbcolumns_mc
+        
+    processor_instance = BoostedHbbProcessor(corrections=corrections,columns=allcolumns)
 
     with lz4f.open('boostedHbbProcessor.cpkl.lz4', mode='wb', compression_level=5 ) as fout:
         cloudpickle.dump(processor_instance, fout)

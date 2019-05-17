@@ -161,9 +161,14 @@ def read_xsections(filename):
             out[dataset] = xs
     return out
 
-
 # curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/newTF/analysis/ggH/xSections.dat
 corrections['xsections'] = read_xsections("metadata/xSections.dat")
+
+normlist = None
+with lz4f.open('correction_files/sumw_mc.cpkl.lz4','rb') as fin:
+    normlist = cloudpickle.load(fin)
+
+corrections['sumw_external'] = normlist
 
 with lz4f.open("corrections.cpkl.lz4", mode="wb", compression_level=5 ) as fout:
     cloudpickle.dump(corrections, fout)
