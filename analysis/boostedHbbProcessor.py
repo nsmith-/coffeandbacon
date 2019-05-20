@@ -402,10 +402,11 @@ class BoostedHbbProcessor(processor.ProcessorABC):
     def postprocess(self, accumulator):
         # set everything to 1/fb scale
         lumi = 1000  # [1/pb]
-
-        normlist = self._corrections['sumw_external']
-        for key in accumulator['sumw'].keys():
-            accumulator['sumw'][key].value = normlist[key].value
+        
+        if 'sumw_external' in self._corrections:
+            normlist = self._corrections['sumw_external']
+            for key in accumulator['sumw'].keys():
+                accumulator['sumw'][key].value = normlist[key].value
 
         scale = {}
         for dataset, dataset_sumw in accumulator['sumw'].items():
