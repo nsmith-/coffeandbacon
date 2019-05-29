@@ -5,6 +5,7 @@ import json
 import time
 import cloudpickle
 import argparse
+from tqdm import tqdm
 
 import uproot
 import numpy as np
@@ -12,13 +13,13 @@ from fnal_column_analysis_tools import hist, processor
 
 
 # instrument xrootd source
-def _read(self, chunkindex):
-    self.bytesread = getattr(self, 'bytesread', 0) + self._chunkbytes
-    return self._read_real(chunkindex)
+if not hasattr(uproot.source.xrootd.XRootDSource, '_read_real'):
+    def _read(self, chunkindex):
+        self.bytesread = getattr(self, 'bytesread', 0) + self._chunkbytes
+        return self._read_real(chunkindex)
 
-
-uproot.source.xrootd.XRootDSource._read_real = uproot.source.xrootd.XRootDSource._read
-uproot.source.xrootd.XRootDSource._read = _read
+    uproot.source.xrootd.XRootDSource._read_real = uproot.source.xrootd.XRootDSource._read
+    uproot.source.xrootd.XRootDSource._read = _read
 
 
 def process_file(dataset, file, processor_instance, stats_accumulator, preload_items=None):
@@ -54,6 +55,14 @@ def process_file(dataset, file, processor_instance, stats_accumulator, preload_i
     return output, stats
 
 
+def validate(dataset, file):
+    fin = uproot.open(file)
+    if 'otree' in fin:
+        return fin['otree'].numentries
+    else:
+        return fin['Events'].numentries
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor cloudpickle files')
     parser.add_argument('--processor', default='boostedHbbProcessor.cpkl.lz4', help='The name of the compiled processor file')
@@ -61,6 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--samplejson', default='metadata/samplefiles.json', help='JSON file containing dataset and file locations')
     parser.add_argument('--sample', default='test_skim', help='The sample to use in the sample JSON')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
+    parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
     parser.add_argument('--executor', choices=['iterative', 'futures'], default='iterative', help='The type of executor to use')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor)')
     parser.add_argument('--profile-out', dest='profilehtml', default=None, help='Filename for the pyinstrument HTML profile output')
@@ -71,11 +81,21 @@ if __name__ == '__main__':
 
     with open(args.samplejson) as fin:
         samplefiles = json.load(fin)
+    if args.sample not in samplefiles:
+        print("Sample '%s' not available in %s, available:" % (args.sample, args.samplejson), list(samplefiles.keys()))
     sample = samplefiles[args.sample]
     filelist = []
     for dataset, files in sample.items():
         for file in files[:args.limit]:
             filelist.append((dataset, file))
+
+    if args.validate:
+        for ds, fn in tqdm(filelist, desc='Validating files'):
+            try:
+                validate(ds, fn)
+            except OSError:
+                print("File open error for %s, %s" % (ds, fn))
+        exit(0)
 
     with lz4f.open(args.processor, mode="rb") as fin:
         processor_instance = cloudpickle.load(fin)
