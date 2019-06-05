@@ -4,6 +4,7 @@ import cloudpickle
 import pprint
 import numpy as np
 from fnal_column_analysis_tools import hist, processor
+import argparse
 
 
 def deltaphi(a, b):
@@ -11,9 +12,11 @@ def deltaphi(a, b):
 
 
 class BoostedHbbProcessor(processor.ProcessorABC):
-    def __init__(self, corrections, debug=False):
+    def __init__(self, corrections, debug=False, year='2017', skipPileup=False):
         self._corrections = corrections
         self._debug = debug
+        self._year = year
+        self._skipPileup = skipPileup
 
         dataset_axis = hist.Cat("dataset", "Primary dataset")
         gencat_axis = hist.Bin("AK8Puppijet0_isHadronicV", "V matching index", [0,1,2,3,9,10,11])
@@ -35,6 +38,11 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         hists = processor.dict_accumulator()
         hist.Hist.DEFAULT_DTYPE = 'f'  # save some space by keeping float bin counts instead of double
         hists['sumw'] = processor.dict_accumulator()  # the defaultdict_accumulator is broken :<
+        hists['genVpt_noselection'] = hist.Hist("Events / 20 GeV",
+                                                dataset_axis,
+                                                gencat_axis,
+                                                hist.Bin("genVPt", "Gen. V $p_T$", 60, 0, 1200),
+                                                )
         hists['jetpt_preselection'] = hist.Hist("Events",
                                                 dataset_axis,
                                                 gencat_axis,
@@ -286,6 +294,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         selection.add('pfmet', df['pfmet'] < 140.)
 
         regions = {}
+        regions['noselection'] = {}
         regions['preselection'] = {'trigger', 'noLeptons'}
         regions['signalregion'] = {'trigger', 'noLeptons', 'jetKinematics', 'pfmet', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem'}
         regions['muoncontrol'] = {'mutrigger', 'oneMuon', 'muonAcceptance', 'jetKinematicsMuonCR', 'n2ddtPass', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
@@ -306,16 +315,25 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # SumWeights is sum(scale1fb), so we need to use full value here
             weights.add('genweight', df['scale1fb'])
 
-        if dataset in self._corrections['2017_pileupweight_dataset']:
+        if (not self._skipPileup) and dataset in self._corrections['2017_pileupweight_dataset']:
             weights.add('pileupweight',
                         self._corrections['2017_pileupweight_dataset'][dataset](df['npu']),
                         self._corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
                         self._corrections['2017_pileupweight_dataset_puDown'][dataset](df['npu']),
                         )
 
-        if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
-            weights.add('kfactor', df['kfactorEWK'] * df['kfactorQCD'])
+        if self._year == '2017' and ('ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset):
+            # weights.add('kfactor', df['kfactorEWK'] * df['kfactorQCD'])
+            pass
             # TODO unc.
+        elif self._year == '2016' and 'DYJetsToQQ' in dataset:
+            nlo_over_lo_qcd = 1.45
+            nlo_over_lo_ewk = self._corrections['2016_Z_nlo_over_lo_ewk'](df['genVPt'])
+            weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
+        elif self._year == '2016' and 'WJetsToQQ' in dataset:
+            nlo_over_lo_qcd = 1.35
+            nlo_over_lo_ewk = self._corrections['2016_W_nlo_over_lo_ewk'](df['genVPt'])
+            weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
 
         if not isRealData:
             # handle weight systematics for signal region
@@ -410,10 +428,16 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Boosted Hbb processor')
+    parser.add_argument('--year', choices=['2016', '2017'], default='2017', help='Which data taking year to correct MC to.  2016 is incomplete')
+    parser.add_argument('--debug', action='store_true', help='Enable debug printouts')
+    parser.add_argument('--skipPileup', action='store_true', help='Do not apply pileup reweight corrections to MC')
+    args = parser.parse_args()
+
     with lz4f.open("corrections.cpkl.lz4", mode="rb") as fin:
         corrections = cloudpickle.load(fin)
 
-    processor_instance = BoostedHbbProcessor(corrections=corrections)
+    processor_instance = BoostedHbbProcessor(corrections=corrections, debug=args.debug, year=args.year)
 
     with lz4f.open('boostedHbbProcessor.cpkl.lz4', mode='wb', compression_level=5 ) as fout:
         cloudpickle.dump(processor_instance, fout)
