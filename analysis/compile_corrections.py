@@ -43,6 +43,16 @@ def msd_weight(pt, eta):
 
 corrections['msdweight'] = msd_weight
 
+with uproot.open("correction_files/kfactors.root") as kfactors:
+    ewkW_num = kfactors['EWKcorr/W']
+    ewkZ_num = kfactors['EWKcorr/Z']
+    # ewkW_denom = kfactors['WJets_LO/inv_pt']
+    # ewkZ_denom = kfactors['ZJets_LO/inv_pt']
+    ewkW_denom = kfactors['WJets_012j_NLO/nominal']
+    ewkZ_denom = kfactors['ZJets_012j_NLO/nominal']
+
+corrections['2016_W_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkW_num.values / ewkW_denom.values, ewkW_num.edges)
+corrections['2016_Z_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkZ_num.values / ewkZ_denom.values, ewkZ_num.edges)
 
 with lz4f.open("correction_files/pileup_mc.cpkl.lz4", "rb") as fin:
     pileup_corr = cloudpickle.load(fin)
@@ -161,9 +171,14 @@ def read_xsections(filename):
             out[dataset] = xs
     return out
 
-
 # curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/newTF/analysis/ggH/xSections.dat
 corrections['xsections'] = read_xsections("metadata/xSections.dat")
+
+normlist = None
+with lz4f.open('correction_files/sumw_mc.cpkl.lz4','rb') as fin:
+    normlist = cloudpickle.load(fin)
+
+corrections['sumw_external'] = normlist
 
 with lz4f.open("corrections.cpkl.lz4", mode="wb", compression_level=5 ) as fout:
     cloudpickle.dump(corrections, fout)

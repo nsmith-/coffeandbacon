@@ -12,10 +12,11 @@ import difflib
 
 uproot_xrootd_opts = dict(chunkbytes=30*1024, limitbytes=20*(1024**2))
 fnaleos = "root://cmseos.fnal.gov/"
-dazsle_root = "/eos/uscms/store/user/lpcbacon/dazsle/zprimebits-v15.01"
-patterns = ["*HToCC*"]
+dazsle_root = "/eos/uscms/store/user/lpcbacon/dazsle/zprimebits-v15.04"
+#patterns = ["DYJetsToQQ*", "WJetsToQQ*"]
+patterns = ["ZJetsToQQ*", "WJetsToQQ*"]
 #patterns = ["WJetsToLNu*"]
-getentries = False
+getentries = True
 
 def read_xsections(filename):
     out = {}

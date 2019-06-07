@@ -31,7 +31,7 @@ The following recipe runs all the relevant code to produce templates similar to 
 cd analysis
 ./compile_corrections.py
 ./boostedHbbProcessor.py
-./run_baconbits.py --executor futures
+./run_baconbits.py --executor futures --sample Hbb_2017
 python baconbits-templates.py
 python convert2d.py
 ls hist_1DZbb*
