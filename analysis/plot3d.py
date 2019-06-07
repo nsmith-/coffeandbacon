@@ -2,7 +2,7 @@ from __future__ import print_function
 import gzip
 import pickle
 import numpy as np
-from fnal_column_analysis_tools import hist
+from coffea import hist
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import LinearSegmentedColormap

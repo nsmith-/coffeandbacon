@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 import uproot
 import numpy as np
-from fnal_column_analysis_tools import hist, processor
+from coffea import hist, processor
 
 
 # instrument xrootd source

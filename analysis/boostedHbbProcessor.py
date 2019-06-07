@@ -3,7 +3,7 @@ import lz4.frame as lz4f
 import cloudpickle
 import pprint
 import numpy as np
-from fnal_column_analysis_tools import hist, processor
+from coffea import hist, processor
 import argparse
 
 
@@ -377,6 +377,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         hout = self.accumulator.identity()
         for histname, h in hout.items():
             if not isinstance(h, hist.Hist):
+                continue
+            if not all(k in df or k == 'systematic' for k in h.fields):
+                # Cannot fill this histogram due to missing fields
+                # is this an error, warning, or ignorable?
                 continue
             fields = {k: df[k] for k in h.fields if k in df}
             region = [r for r in regions.keys() if r in histname.split('_')]
