@@ -2,8 +2,6 @@
 from __future__ import print_function, division
 from collections import defaultdict
 import gzip
-import lz4.frame as lz4f
-import cloudpickle as cpkl
 import json
 import re
 import os
@@ -12,10 +10,10 @@ import uproot
 import numpy as np
 
 from coffea import hist
+from coffea.util import load, save
 import processmap
 
-with lz4f.open("hists.cpkl.lz4") as fin:
-    hists_unmapped = cpkl.load(fin)
+hists_unmapped = load('hists.coffea')
 
 
 hists = {}
