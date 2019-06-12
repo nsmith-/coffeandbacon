@@ -3,7 +3,7 @@ import lz4.frame as lz4f
 import cloudpickle
 import pprint
 import numpy as np
-from fnal_column_analysis_tools import hist, processor
+from coffea import hist, processor
 
 
 def deltaphi(a, b):

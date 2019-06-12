@@ -7,7 +7,7 @@ import sys
 
 import uproot
 import numpy as np
-from fnal_column_analysis_tools import processor
+from coffea import processor
 
 with open("metadata/samplefiles.json") as fin:
     samplefiles = json.load(fin)

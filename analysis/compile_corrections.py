@@ -7,8 +7,8 @@ import pickle
 import uproot
 import numexpr
 import numpy as np
-from fnal_column_analysis_tools import hist, lookup_tools
-from fnal_column_analysis_tools.hist import plot
+from coffea import hist, lookup_tools
+from coffea.hist import plot
 
 
 corrections = {}

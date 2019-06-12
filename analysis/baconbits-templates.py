@@ -11,8 +11,8 @@ import os
 import uproot
 import numpy as np
 
-from fnal_column_analysis_tools import hist
-from fnal_column_analysis_tools.hist import export
+from coffea import hist
+from coffea.hist import export
 import processmap
 
 with lz4f.open("hists.cpkl.lz4") as fin:
