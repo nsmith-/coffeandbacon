@@ -1,34 +1,23 @@
 #!/usr/bin/env python
 from __future__ import print_function, division
-import lz4.frame as lz4f
-import cloudpickle
 import json
-import sys
+import argparse
+from functools import partial
 
 import uproot
 import numpy as np
-from fnal_column_analysis_tools import processor
-
-with open("metadata/samplefiles.json") as fin:
-    samplefiles = json.load(fin)
-sample = samplefiles[sys.argv[-1]]
-
-filelist = []
-for dataset, files in sample.items():
-    if dataset == 'JetHT' or dataset == 'SingleMuon':
-        continue
-    for file in files:
-        filelist.append((dataset, file))
+from coffea import processor
+from coffea.util import load, save
 
 
 def get_pileup(item):
     dataset, filename = item
     file = uproot.open(filename)
     puhist = file["Pu"]
-    pileup = processor.accumulator(np.zeros_like(puhist.values))
+    pileup = processor.value_accumulator(partial(np.zeros, puhist.values.size))
     pileup += puhist.values
     sumwhist = file["SumWeights"]
-    sumw = processor.accumulator(np.zeros(1))
+    sumw = processor.value_accumulator(int)
     sumw += sumwhist.values[0]
     return processor.dict_accumulator({
         'pileup': processor.dict_accumulator({dataset: pileup}),
@@ -36,15 +25,33 @@ def get_pileup(item):
     })
 
 
-final_accumulator = processor.dict_accumulator({
-    'pileup': processor.dict_accumulator(),
-    'sumw': processor.dict_accumulator(),
-})
-processor.futures_executor(filelist, get_pileup, final_accumulator, workers=8)
+def make_pileup(args):
+    with open(args.samplejson) as fin:
+        samplefiles = json.load(fin)
+    sample = samplefiles[args.sample]
 
-with lz4f.open("correction_files/pileup_mc.cpkl.lz4", "wb") as fout:
-    cloudpickle.dump(final_accumulator['pileup'], fout)
+    filelist = []
+    for dataset, files in sample.items():
+        if dataset == 'JetHT' or dataset == 'SingleMuon':
+            continue
+        for file in files:
+            filelist.append((dataset, file))
 
-with lz4f.open("correction_files/sumw_mc.cpkl.lz4", "wb") as fout:
-    cloudpickle.dump(final_accumulator['sumw'], fout)
+    final_accumulator = processor.dict_accumulator({
+        'pileup': processor.dict_accumulator(),
+        'sumw': processor.dict_accumulator(),
+    })
+    processor.futures_executor(filelist, get_pileup, final_accumulator, workers=args.workers)
 
+    save(final_accumulator['pileup'], 'correction_files/pileup_mc.coffea')
+    save(final_accumulator['sumw'], 'correction_files/sumw_mc.coffea')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Precompute MC pileup distribution for a given set of samples (mainly useful for 2017)')
+    parser.add_argument('--samplejson', default='metadata/samplefiles.json', help='JSON file containing dataset and file locations (default: %(default)s)')
+    parser.add_argument('--sample', default='Hbb_2017', help='The sample to use in the sample JSON (default: %(default)s)')
+    parser.add_argument('-j', '--workers', type=int, default=8, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
+    args = parser.parse_args()
+
+    make_pileup(args)

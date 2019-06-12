@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 import json
 import gzip
-import lz4.frame as lz4f
-import cloudpickle
-import pickle
 import uproot
 import numexpr
 import numpy as np
-from fnal_column_analysis_tools import hist, lookup_tools
-from fnal_column_analysis_tools.hist import plot
+from coffea import hist, lookup_tools
+from coffea.util import load, save
+from coffea.hist import plot
 
 
 corrections = {}
@@ -54,8 +52,7 @@ with uproot.open("correction_files/kfactors.root") as kfactors:
 corrections['2016_W_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkW_num.values / ewkW_denom.values, ewkW_num.edges)
 corrections['2016_Z_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkZ_num.values / ewkZ_denom.values, ewkZ_num.edges)
 
-with lz4f.open("correction_files/pileup_mc.cpkl.lz4", "rb") as fin:
-    pileup_corr = cloudpickle.load(fin)
+pileup_corr = load('correction_files/pileup_mc.coffea')
 
 with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Collisions17_withVar.root") as fin_pileup:
     norm = lambda x: x / x.sum()
@@ -174,11 +171,4 @@ def read_xsections(filename):
 # curl -O https://raw.githubusercontent.com/kakwok/ZPrimePlusJet/newTF/analysis/ggH/xSections.dat
 corrections['xsections'] = read_xsections("metadata/xSections.dat")
 
-normlist = None
-with lz4f.open('correction_files/sumw_mc.cpkl.lz4','rb') as fin:
-    normlist = cloudpickle.load(fin)
-
-corrections['sumw_external'] = normlist
-
-with lz4f.open("corrections.cpkl.lz4", mode="wb", compression_level=5 ) as fout:
-    cloudpickle.dump(corrections, fout)
+save(corrections, 'corrections.coffea')

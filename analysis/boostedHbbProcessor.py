@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-import lz4.frame as lz4f
-import cloudpickle
 import pprint
 import numpy as np
-from fnal_column_analysis_tools import hist, processor
+from coffea import hist, processor
+from coffea.util import load, save
 import argparse
 
 
@@ -38,7 +37,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
         hists = processor.dict_accumulator()
         hist.Hist.DEFAULT_DTYPE = 'f'  # save some space by keeping float bin counts instead of double
-        hists['sumw'] = processor.dict_accumulator()  # the defaultdict_accumulator is broken :<
+        hists['sumw'] = processor.defaultdict_accumulator(int)
         hists['genVpt_noselection'] = hist.Hist("Events / 20 GeV",
                                                 dataset_axis,
                                                 gencat_axis,
@@ -378,6 +377,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         for histname, h in hout.items():
             if not isinstance(h, hist.Hist):
                 continue
+            if not all(k in df or k == 'systematic' for k in h.fields):
+                # Cannot fill this histogram due to missing fields
+                # is this an error, warning, or ignorable?
+                continue
             fields = {k: df[k] for k in h.fields if k in df}
             region = [r for r in regions.keys() if r in histname.split('_')]
 
@@ -407,8 +410,6 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                 raise ValueError("Histogram '%s' does not fall into any region definitions." % (histname, ))
 
         if not isRealData:
-            if dataset not in hout['sumw']:
-                hout['sumw'][dataset] = processor.accumulator(0.)
             if 'skim_sumw' in df:
                 # hacky way to only accumulate file-level information once
                 if df['skim_sumw'] is not None:
@@ -424,11 +425,11 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         if 'sumw_external' in self._corrections:
             normlist = self._corrections['sumw_external']
             for key in accumulator['sumw'].keys():
-                accumulator['sumw'][key].value = normlist[key].value
+                accumulator['sumw'][key] = normlist[key].value
 
         scale = {}
         for dataset, dataset_sumw in accumulator['sumw'].items():
-            scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw.value
+            scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw
             
         for h in accumulator.values():
             if isinstance(h, hist.Hist):
@@ -442,15 +443,17 @@ if __name__ == '__main__':
     parser.add_argument('--year', choices=['2016', '2017'], default='2017', help='Which data taking year to correct MC to.  2016 is incomplete')
     parser.add_argument('--debug', action='store_true', help='Enable debug printouts')
     parser.add_argument('--skipPileup', action='store_true', help='Do not apply pileup reweight corrections to MC')
+    parser.add_argument('--externalSumW', help='Path to external sum weights file (if provided, will be used in place of self-determined sumw)')
     args = parser.parse_args()
 
-    with lz4f.open("corrections.cpkl.lz4", mode="rb") as fin:
-        corrections = cloudpickle.load(fin)
+    corrections = load('corrections.coffea')
+
+    if args.externalSumW is not None:
+        corrections['sumw_external'] = load(args.externalSumW)
 
     from columns import gghbbcolumns, gghbbcolumns_mc
     allcolumns = gghbbcolumns + gghbbcolumns_mc
         
     processor_instance = BoostedHbbProcessor(corrections=corrections, columns=allcolumns, debug=args.debug, year=args.year)
 
-    with lz4f.open('boostedHbbProcessor.cpkl.lz4', mode='wb', compression_level=5 ) as fout:
-        cloudpickle.dump(processor_instance, fout)
+    save(processor_instance, 'boostedHbbProcessor.coffea')

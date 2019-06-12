@@ -1,15 +1,13 @@
 #!/usr/bin/env python
-import lz4.frame as lz4f
-import pickle
 import json
 import time
-import cloudpickle
 import argparse
 from tqdm import tqdm
 
 import uproot
 import numpy as np
-from fnal_column_analysis_tools import hist, processor
+from coffea import hist, processor
+from coffea.util import load, save
 
 
 # instrument xrootd source
@@ -64,15 +62,15 @@ def validate(dataset, file):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor cloudpickle files')
-    parser.add_argument('--processor', default='boostedHbbProcessor.cpkl.lz4', help='The name of the compiled processor file')
-    parser.add_argument('--output', default='hists.cpkl.lz4', help='Output histogram filename')
-    parser.add_argument('--samplejson', default='metadata/samplefiles.json', help='JSON file containing dataset and file locations')
-    parser.add_argument('--sample', default='test_skim', help='The sample to use in the sample JSON')
+    parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor coffea files')
+    parser.add_argument('--processor', default='boostedHbbProcessor.coffea', help='The name of the compiled processor file (default: %(default)s)')
+    parser.add_argument('--output', default='hists.coffea', help='Output histogram filename (default: %(default)s)')
+    parser.add_argument('--samplejson', default='metadata/samplefiles.json', help='JSON file containing dataset and file locations (default: %(default)s)')
+    parser.add_argument('--sample', default='test_skim', help='The sample to use in the sample JSON (default: %(default)s)')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
-    parser.add_argument('--executor', choices=['iterative', 'futures'], default='iterative', help='The type of executor to use')
-    parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor)')
+    parser.add_argument('--executor', choices=['iterative', 'futures'], default='iterative', help='The type of executor to use (default: %(default)s)')
+    parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     parser.add_argument('--profile-out', dest='profilehtml', default=None, help='Filename for the pyinstrument HTML profile output')
     args = parser.parse_args()
 
@@ -97,14 +95,13 @@ if __name__ == '__main__':
                 print("File open error for %s, %s" % (ds, fn))
         exit(0)
 
-    with lz4f.open(args.processor, mode="rb") as fin:
-        processor_instance = cloudpickle.load(fin)
+    processor_instance = load(args.processor)
 
     combined_accumulator = processor.dict_accumulator({
         'stats': processor.dict_accumulator({
-            'nentries': processor.accumulator(0),
-            'bytesread': processor.accumulator(0),
-            'sumworktime': processor.accumulator(0.),
+            'nentries': processor.value_accumulator(int),
+            'bytesread': processor.value_accumulator(int),
+            'sumworktime': processor.value_accumulator(float),
             'columns_accessed': processor.set_accumulator(),
         }),
         'job': processor_instance.accumulator.identity(),
@@ -143,9 +140,7 @@ if __name__ == '__main__':
     print("Filled %.1fM bins" % (nbins/1e6, ))
     print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
 
-    # Pickle is not very fast or memory efficient, will be replaced by something better soon
-    with lz4f.open(args.output, mode="wb", compression_level=5) as fout:
-        cloudpickle.dump(final_accumulator, fout)
+    save(final_accumulator, args.output)
 
     dt = time.time() - tstart
     nworkers = 1 if args.executor == 'iterative' else args.workers

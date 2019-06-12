@@ -16,6 +16,7 @@ On future use at LPC, run `source env_lcg.sh`.
 The following recipe runs all the relevant code to produce templates similar to those of `sampleContainer`:
 ```bash
 cd analysis
+# optional, because output saved in repository: ./make_pileup.py
 ./compile_corrections.py
 ./boostedHbbProcessor.py
 ./run_baconbits.py --executor futures --sample Hbb_2017

@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from fnal_column_analysis_tools import hist
+from coffea import hist
 
 process = hist.Cat("process", "Process", sorting='placement')
 process_cat = "dataset"
