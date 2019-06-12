@@ -2,7 +2,7 @@
 
 source env_lcg.sh
 
-pip install --user coffea lz4
+pip install --user coffea
 
 # progressbar, sliders, etc.
 jupyter nbextension enable --py widgetsnbextension
