@@ -37,5 +37,5 @@ To use juptyer at LPC, start a notebook server with, e.g. `jupyter notebook --no
 substituing your favorite port: pick a random integer in (8000,65535).
 Often, you'll need an ssh tunnel, which can be accomplished via, e.g. `ssh -L $PORT:localhost:$PORT server.address`
 
-Check out some of the notebooks in the analysis directory.  Most will need `hists.pkl.gz` as created by `run_baconbits.py`,
+Check out some of the notebooks in the analysis directory.  Most will need the `hists.coffea` file as created by `run_baconbits.py`,
 but the top background notebook can be run after downloading the test baconbits.
