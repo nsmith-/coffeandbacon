@@ -4,7 +4,7 @@ python3.6 -m virtualenv py36
 source py36/bin/activate
 
 pip install --upgrade pip
-pip install llvmlite numba numpy pandas ipykernel matplotlib lz4 pyarrow
+pip install llvmlite numba numpy pandas ipykernel matplotlib lz4 pyarrow tqdm py4j
 
 ipython kernel install --user --name "py36" --display-name "py36"
 
