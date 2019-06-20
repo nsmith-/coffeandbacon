@@ -12,14 +12,18 @@ from coffea.hist import plot
 corrections = {}
 
 extractor = lookup_tools.extractor()
+extractor.add_weight_sets(["2016_n2ddt_ * correction_files/n2ddt_transform_2016MC.root"])
 extractor.add_weight_sets(["2017_n2ddt_ * correction_files/n2ddt_transform_2017MC.root"])
+extractor.add_weight_sets(["2018_n2ddt_ * correction_files/n2ddt_transform_2018MC.root"])
 extractor.add_weight_sets(["2017_mutrigger_ * correction_files/EfficienciesAndSF_RunBtoF_Nov17Nov2017.root"])
 extractor.add_weight_sets(["2017_muid_ * correction_files/Muon2017_RunBCDEF_SF_ID.json"])
 extractor.add_weight_sets(["2017_muiso_ * correction_files/Muon2017_RunBCDEF_SF_ISO.json"])
 extractor.finalize()
 evaluator = extractor.make_evaluator()
 
+corrections['2016_n2ddt_rho_pt'] = evaluator['2016_n2ddt_Rho2D']
 corrections['2017_n2ddt_rho_pt'] = evaluator['2017_n2ddt_Rho2D']
+corrections['2018_n2ddt_rho_pt'] = evaluator['2018_n2ddt_Rho2D']
 corrections['2017_mutrigweight_pt_abseta'] = evaluator['2017_mutrigger_Mu50_PtEtaBins/efficienciesDATA/pt_abseta_DATA']
 corrections['2017_mutrigweight_pt_abseta_mutrigweightShift'] = evaluator['2017_mutrigger_Mu50_PtEtaBins/efficienciesDATA/pt_abseta_DATA_error']
 corrections['2017_muidweight_abseta_pt'] = evaluator['2017_muid_NUM_LooseID_DEN_genTracks/abseta_pt_value']
@@ -80,6 +84,24 @@ corrections['2017_pileupweight_dataset_puUp'] = pileup_corr_puUp
 corrections['2017_pileupweight_dataset_puDown'] = pileup_corr_puDown
 
 
+with uproot.open("correction_files/RUNTriggerEfficiencies_SingleMuon_Run2016_V2p1_v03.root") as fin:
+    denom = fin["DijetTriggerEfficiencySeveralTriggers/jet1SoftDropMassjet1PtDenom_cutJet"]
+    num = fin["DijetTriggerEfficiencySeveralTriggers/jet1SoftDropMassjet1PtPassing_cutJet"]
+    eff = num.values/np.maximum(denom.values, 1)
+    efferr = plot.clopper_pearson_interval(num.values, denom.values)
+    msd_bins, pt_bins = num.edges
+    # Cut pt < 200
+    cutpt = pt_bins >= 200
+    pt_bins = pt_bins[cutpt]
+    cutpt = cutpt[:-1]
+    eff = eff[:,cutpt]
+    eff_trigweightDown = efferr[0,:,cutpt]
+    eff_trigweightUp = efferr[1,:,cutpt]
+
+corrections['2016_trigweight_msd_pt'] = lookup_tools.dense_lookup.dense_lookup(eff, (msd_bins, pt_bins))
+corrections['2016_trigweight_msd_pt_trigweightDown'] = lookup_tools.dense_lookup.dense_lookup(eff_trigweightDown, (msd_bins, pt_bins))
+corrections['2016_trigweight_msd_pt_trigweightUp'] = lookup_tools.dense_lookup.dense_lookup(eff_trigweightUp, (msd_bins, pt_bins))
+
 with uproot.open("correction_files/TrigEff_2017BtoF_noPS_Feb21.root") as fin:
     denom = fin["h_denom"]
     num = fin["h_numer"]
@@ -95,6 +117,22 @@ with uproot.open("correction_files/TrigEff_2017BtoF_noPS_Feb21.root") as fin:
 corrections['2017_trigweight_msd_pt'] = lookup_tools.dense_lookup.dense_lookup(eff, (msd_bins, pt_bins))
 corrections['2017_trigweight_msd_pt_trigweightDown'] = lookup_tools.dense_lookup.dense_lookup(eff_trigweightDown, (msd_bins, pt_bins))
 corrections['2017_trigweight_msd_pt_trigweightUp'] = lookup_tools.dense_lookup.dense_lookup(eff_trigweightUp, (msd_bins, pt_bins))
+
+with uproot.open("correction_files/TrigEff_2018_Feb21.root") as fin:
+    denom = fin["h_denom"]
+    num = fin["h_numer"]
+    eff = num.values/np.maximum(denom.values, 1)
+    efferr = plot.clopper_pearson_interval(num.values, denom.values)
+    msd_bins, pt_bins = num.edges
+    # Cut pt < 200
+    pt_bins = pt_bins[8:]
+    eff = eff[:,8:]
+    eff_trigweightDown = efferr[0,:,8:]
+    eff_trigweightUp = efferr[1,:,8:]
+
+corrections['2018_trigweight_msd_pt'] = lookup_tools.dense_lookup.dense_lookup(eff, (msd_bins, pt_bins))
+corrections['2018_trigweight_msd_pt_trigweightDown'] = lookup_tools.dense_lookup.dense_lookup(eff_trigweightDown, (msd_bins, pt_bins))
+corrections['2018_trigweight_msd_pt_trigweightUp'] = lookup_tools.dense_lookup.dense_lookup(eff_trigweightUp, (msd_bins, pt_bins))
 
 
 with open("correction_files/TriggerBitMap.json") as fin:
