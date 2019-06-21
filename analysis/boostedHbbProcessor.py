@@ -224,7 +224,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         # for very large pt values, correction can become negative
         df['AK8Puppijet0_msd'] = np.maximum(1e-7, df['AK8Puppijet0_msd']*self._corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
         df['ak8jet_rho'] = 2*np.log(df['AK8Puppijet0_msd']/df['AK8Puppijet0_pt'])
-        df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - self._corrections['2017_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
+        df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - self._corrections[f'{self._year}_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
 
     def subleading_n3(self, df):
         e4_v2_jet1 = self.clean(df, 'AK8Puppijet1_e4_v2_sdb1', 1.)
@@ -276,7 +276,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # Only take jet triggers from JetHT, single muon triggers from SingleMuon dataset
             # necessary but not sufficient condition to prevent double-counting
             # (this plus mutually exclusive offline selections are sufficient)
-            selection.add('trigger', (df['triggerBits'] & self._corrections['2017_triggerMask']).astype('bool') & (dataset=="JetHT"))
+            selection.add('trigger', (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool') & (dataset=="JetHT"))
             selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool') & (dataset=="SingleMuon"))
         else:
             selection.add('trigger', np.ones(df.size, dtype='bool'))
@@ -319,12 +319,19 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # SumWeights is sum(scale1fb), so we need to use full value here
             weights.add('genweight', df['scale1fb'])
 
-        if (not self._skipPileup) and dataset in self._corrections['2017_pileupweight_dataset']:
-            weights.add('pileupweight',
-                        self._corrections['2017_pileupweight_dataset'][dataset](df['npu']),
-                        self._corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
-                        self._corrections['2017_pileupweight_dataset_puDown'][dataset](df['npu']),
-                        )
+        if not self._skipPileup:
+            if self._year == '2017' and dataset in self._corrections['2017_pileupweight_dataset']:
+                weights.add('pileupweight',
+                            self._corrections['2017_pileupweight_dataset'][dataset](df['npu']),
+                            self._corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
+                            self._corrections['2017_pileupweight_dataset_puDown'][dataset](df['npu']),
+                            )
+            elif self._year != '2017':
+                weights.add('pileupweight',
+                            self._corrections[f'{self._year}_pileupweight'](df['npu']),
+                            self._corrections[f'{self._year}_pileupweight_puUp'](df['npu']),
+                            self._corrections[f'{self._year}_pileupweight_puDown'](df['npu']),
+                            )
 
         if self._year == '2017' and ('ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset):
             # weights.add('kfactor', df['kfactorEWK'] * df['kfactorQCD'])
@@ -343,9 +350,9 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # handle weight systematics for signal region
             def regionMask(w): return np.where(selection.all('noLeptons'), w, 1.)
             weights.add('trigweight',
-                        regionMask(self._corrections['2017_trigweight_msd_pt'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
-                        regionMask(self._corrections['2017_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
-                        regionMask(self._corrections['2017_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_trigweight_msd_pt'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
                         )
             vmatch = (np.abs(deltaphi(df['AK8Puppijet0_phi'], df['genVPhi'])) < 0.8) & (np.abs(df['AK8Puppijet0_pt']-df['genVPt'])/df['genVPt'] < 0.5) & (np.abs(df['AK8Puppijet0_msd']-df['genVMass'])/df['genVMass'] < 0.3)
             weights.add('matched', np.ones(df.size, dtype='f'), vmatch.astype('f'), 1.-vmatch)
@@ -354,18 +361,18 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             def regionMask(w): return np.where(selection.all('oneMuon'), w, 1.)
             mu_abseta = np.abs(df['vmuoLoose0_eta'])
             weights.add('mutrigweight',
-                        regionMask(self._corrections['2017_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta)),
-                        regionMask(self._corrections['2017_mutrigweight_pt_abseta_mutrigweightShift'](df['vmuoLoose0_pt'], mu_abseta)),
+                        regionMask(self._corrections[f'{self._year}_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta)),
+                        regionMask(self._corrections[f'{self._year}_mutrigweight_pt_abseta_mutrigweightShift'](df['vmuoLoose0_pt'], mu_abseta)),
                         shift=True
                         )
             weights.add('muidweight',
-                        regionMask(self._corrections['2017_muidweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
-                        regionMask(self._corrections['2017_muidweight_abseta_pt_muidweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_muidweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_muidweight_abseta_pt_muidweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
                         shift=True
                         )
             weights.add('muisoweight',
-                        regionMask(self._corrections['2017_muisoweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
-                        regionMask(self._corrections['2017_muisoweight_abseta_pt_muisoweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_muisoweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_muisoweight_abseta_pt_muisoweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
                         shift=True
                         )
 
