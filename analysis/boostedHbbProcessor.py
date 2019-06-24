@@ -22,8 +22,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         gencat_axis = hist.Bin("AK8Puppijet0_isHadronicV", "V matching index", [0,1,2,3,9,10,11])
         jetpt_axis = hist.Bin("AK8Puppijet0_pt", r"Jet $p_T$", [450, 500, 550, 600, 675, 800, 1200])
         jetmass_axis = hist.Bin("AK8Puppijet0_msd", r"Jet $m_{sd}$", 23, 40, 201)
-        jetpt_coarse_axis = hist.Bin("AK8Puppijet0_pt", r"Jet $p_T$", [450, 1200])
-        jetmass_coarse_axis = hist.Bin("AK8Puppijet0_msd", r"Jet $m_{sd}$", [40, 103, 152, 201])
+        jetpt_coarse_axis = hist.Bin("AK8Puppijet0_pt", r"Jet $p_T$", [450, 600, 1200])
+        jetmass_coarse_axis = hist.Bin("AK8Puppijet0_msd", r"Jet $m_{sd}$", [40, 82, 103, 152, 201])
         jetrho_axis = hist.Bin("ak8jet_rho", r"Jet $\rho$", 13, -6, -2.1)
         doubleb_axis = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", 20, 0., 1)
         doublec_axis = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", 20, 0., 1.)
@@ -333,17 +333,22 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                             self._corrections[f'{self._year}_pileupweight_puDown'](df['npu']),
                             )
 
-        if self._year == '2017' and ('ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset):
-            # weights.add('kfactor', df['kfactorEWK'] * df['kfactorQCD'])
-            pass
-            # TODO unc.
+        # TODO unc.
+        if self._year == '2017' and 'ZJetsToQQ_HT' in dataset:
+            nlo_over_lo_qcd = self._corrections['2017_Z_nlo_qcd'](df['genVPt'])
+            nlo_over_lo_ewk = self._corrections['Z_nlo_over_lo_ewk'](df['genVPt'])
+            weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
+        elif self._year == '2017' and 'WJetsToQQ_HT' in dataset:
+            nlo_over_lo_qcd = self._corrections['2017_W_nlo_qcd'](df['genVPt'])
+            nlo_over_lo_ewk = self._corrections['W_nlo_over_lo_ewk'](df['genVPt'])
+            weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
         elif self._year == '2016' and 'DYJetsToQQ' in dataset:
-            nlo_over_lo_qcd = 1.45
-            nlo_over_lo_ewk = self._corrections['2016_Z_nlo_over_lo_ewk'](df['genVPt'])
+            nlo_over_lo_qcd = self._corrections['2016_Z_nlo_qcd'](df['genVPt'])
+            nlo_over_lo_ewk = self._corrections['Z_nlo_over_lo_ewk'](df['genVPt'])
             weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
         elif self._year == '2016' and 'WJetsToQQ' in dataset:
-            nlo_over_lo_qcd = 1.35
-            nlo_over_lo_ewk = self._corrections['2016_W_nlo_over_lo_ewk'](df['genVPt'])
+            nlo_over_lo_qcd = self._corrections['2016_W_nlo_qcd'](df['genVPt'])
+            nlo_over_lo_ewk = self._corrections['W_nlo_over_lo_ewk'](df['genVPt'])
             weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
 
         if not isRealData:
@@ -447,7 +452,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Boosted Hbb processor')
-    parser.add_argument('--year', choices=['2016', '2017'], default='2017', help='Which data taking year to correct MC to.  2016 is incomplete')
+    parser.add_argument('--year', choices=['2016', '2017', '2018'], default='2017', help='Which data taking year to correct MC to.')
     parser.add_argument('--debug', action='store_true', help='Enable debug printouts')
     parser.add_argument('--skipPileup', action='store_true', help='Do not apply pileup reweight corrections to MC')
     parser.add_argument('--externalSumW', help='Path to external sum weights file (if provided, will be used in place of self-determined sumw)')

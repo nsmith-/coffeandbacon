@@ -31,6 +31,9 @@ extractor.add_weight_sets(["2016GH_muiso_ * correction_files/Muon2016_IsoEfficie
 extractor.add_weight_sets(["2017_muiso_ * correction_files/Muon2017_RunBCDEF_SF_ISO.json"])
 extractor.add_weight_sets(["2018_muiso_ * correction_files/Muon2018_RunABCD_SF_ISO.json"])
 
+extractor.add_weight_sets(["W_qcd_kfactors * correction_files/WJets_QCD_NLO.root"])
+extractor.add_weight_sets(["Z_qcd_kfactors * correction_files/ZJets_QCD_NLO.root"])
+
 extractor.finalize()
 evaluator = extractor.make_evaluator()
 
@@ -99,8 +102,22 @@ with uproot.open("correction_files/kfactors.root") as kfactors:
     ewkW_denom = kfactors['WJets_012j_NLO/nominal']
     ewkZ_denom = kfactors['ZJets_012j_NLO/nominal']
 
-corrections['2016_W_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkW_num.values / ewkW_denom.values, ewkW_num.edges)
-corrections['2016_Z_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkZ_num.values / ewkZ_denom.values, ewkZ_num.edges)
+corrections['W_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkW_num.values / ewkW_denom.values, ewkW_num.edges)
+corrections['Z_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkZ_num.values / ewkZ_denom.values, ewkZ_num.edges)
+
+with uproot.open("correction_files/WJets_QCD_NLO.root") as kfactors:
+    qcdW_2016_nlo = kfactors['W_NLO_QCD_2016']
+    qcdW_2017_nlo = kfactors['W_NLO_QCD_2017']
+
+corrections['2016_W_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdW_2016_nlo.values, qcdW_2016_nlo.edges)
+corrections['2017_W_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdW_2017_nlo.values, qcdW_2017_nlo.edges)
+
+with uproot.open("correction_files/ZJets_QCD_NLO.root") as kfactors:
+    qcdZ_2016_nlo = kfactors['Z_NLO_QCD_2016']
+    qcdZ_2017_nlo = kfactors['Z_NLO_QCD_2017']
+
+corrections['2016_Z_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdZ_2016_nlo.values, qcdZ_2016_nlo.edges)
+corrections['2017_Z_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdZ_2017_nlo.values, qcdZ_2017_nlo.edges)
 
 
 with uproot.open("correction_files/pileUp_Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.root") as fin_pileup:
