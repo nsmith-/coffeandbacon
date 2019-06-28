@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-import lz4.frame as lz4f
-import cloudpickle
 import pprint
 import numpy as np
 from coffea import hist, processor
+from coffea.util import load, save
+import argparse
 
 
 def deltaphi(a, b):
@@ -11,17 +11,19 @@ def deltaphi(a, b):
 
 
 class BoostedHbbProcessor(processor.ProcessorABC):
-    def __init__(self, corrections, columns=[], debug=False):
+    def __init__(self, corrections, columns=[], debug=False, year='2017', skipPileup=False):
         self._columns = columns
         self._corrections = corrections
         self._debug = debug
+        self._year = year
+        self._skipPileup = skipPileup
 
         dataset_axis = hist.Cat("dataset", "Primary dataset")
         gencat_axis = hist.Bin("AK8Puppijet0_isHadronicV", "V matching index", [0,1,2,3,9,10,11])
         jetpt_axis = hist.Bin("AK8Puppijet0_pt", r"Jet $p_T$", [450, 500, 550, 600, 675, 800, 1200])
         jetmass_axis = hist.Bin("AK8Puppijet0_msd", r"Jet $m_{sd}$", 23, 40, 201)
-        jetpt_coarse_axis = hist.Bin("AK8Puppijet0_pt", r"Jet $p_T$", [450, 1200])
-        jetmass_coarse_axis = hist.Bin("AK8Puppijet0_msd", r"Jet $m_{sd}$", [40, 103, 152, 201])
+        jetpt_coarse_axis = hist.Bin("AK8Puppijet0_pt", r"Jet $p_T$", [450, 600, 1200])
+        jetmass_coarse_axis = hist.Bin("AK8Puppijet0_msd", r"Jet $m_{sd}$", [40, 82, 103, 152, 201])
         jetrho_axis = hist.Bin("ak8jet_rho", r"Jet $\rho$", 13, -6, -2.1)
         doubleb_axis = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", 20, 0., 1)
         doublec_axis = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", 20, 0., 1.)
@@ -35,7 +37,12 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
         hists = processor.dict_accumulator()
         hist.Hist.DEFAULT_DTYPE = 'f'  # save some space by keeping float bin counts instead of double
-        hists['sumw'] = processor.dict_accumulator()  # the defaultdict_accumulator is broken :<
+        hists['sumw'] = processor.defaultdict_accumulator(int)
+        hists['genVpt_noselection'] = hist.Hist("Events / 20 GeV",
+                                                dataset_axis,
+                                                gencat_axis,
+                                                hist.Bin("genVPt", "Gen. V $p_T$", 60, 0, 1200),
+                                                )
         hists['jetpt_preselection'] = hist.Hist("Events",
                                                 dataset_axis,
                                                 gencat_axis,
@@ -217,7 +224,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         # for very large pt values, correction can become negative
         df['AK8Puppijet0_msd'] = np.maximum(1e-7, df['AK8Puppijet0_msd']*self._corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
         df['ak8jet_rho'] = 2*np.log(df['AK8Puppijet0_msd']/df['AK8Puppijet0_pt'])
-        df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - self._corrections['2017_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
+        df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - self._corrections[f'{self._year}_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
 
     def subleading_n3(self, df):
         e4_v2_jet1 = self.clean(df, 'AK8Puppijet1_e4_v2_sdb1', 1.)
@@ -269,7 +276,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # Only take jet triggers from JetHT, single muon triggers from SingleMuon dataset
             # necessary but not sufficient condition to prevent double-counting
             # (this plus mutually exclusive offline selections are sufficient)
-            selection.add('trigger', (df['triggerBits'] & self._corrections['2017_triggerMask']).astype('bool') & (dataset=="JetHT"))
+            selection.add('trigger', (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool') & (dataset=="JetHT"))
             selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool') & (dataset=="SingleMuon"))
         else:
             selection.add('trigger', np.ones(df.size, dtype='bool'))
@@ -291,6 +298,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         selection.add('pfmet', df['pfmet'] < 140.)
 
         regions = {}
+        regions['noselection'] = {}
         regions['preselection'] = {'trigger', 'noLeptons'}
         regions['signalregion'] = {'trigger', 'noLeptons', 'jetKinematics', 'pfmet', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem'}
         regions['muoncontrol'] = {'mutrigger', 'oneMuon', 'muonAcceptance', 'jetKinematicsMuonCR', 'n2ddtPass', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8'}
@@ -311,24 +319,45 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # SumWeights is sum(scale1fb), so we need to use full value here
             weights.add('genweight', df['scale1fb'])
 
-        if dataset in self._corrections['2017_pileupweight_dataset']:
-            weights.add('pileupweight',
-                        self._corrections['2017_pileupweight_dataset'][dataset](df['npu']),
-                        self._corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
-                        self._corrections['2017_pileupweight_dataset_puDown'][dataset](df['npu']),
-                        )
+        if not self._skipPileup:
+            if self._year == '2017' and dataset in self._corrections['2017_pileupweight_dataset']:
+                weights.add('pileupweight',
+                            self._corrections['2017_pileupweight_dataset'][dataset](df['npu']),
+                            self._corrections['2017_pileupweight_dataset_puUp'][dataset](df['npu']),
+                            self._corrections['2017_pileupweight_dataset_puDown'][dataset](df['npu']),
+                            )
+            elif self._year != '2017':
+                weights.add('pileupweight',
+                            self._corrections[f'{self._year}_pileupweight'](df['npu']),
+                            self._corrections[f'{self._year}_pileupweight_puUp'](df['npu']),
+                            self._corrections[f'{self._year}_pileupweight_puDown'](df['npu']),
+                            )
 
-        if 'ZJetsToQQ_HT' in dataset or 'WJetsToQQ_HT' in dataset:
-            weights.add('kfactor', df['kfactorEWK'] * df['kfactorQCD'])
-            # TODO unc.
+        # TODO unc.
+        if self._year == '2017' and 'ZJetsToQQ_HT' in dataset:
+            nlo_over_lo_qcd = self._corrections['2017_Z_nlo_qcd'](df['genVPt'])
+            nlo_over_lo_ewk = self._corrections['Z_nlo_over_lo_ewk'](df['genVPt'])
+            weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
+        elif self._year == '2017' and 'WJetsToQQ_HT' in dataset:
+            nlo_over_lo_qcd = self._corrections['2017_W_nlo_qcd'](df['genVPt'])
+            nlo_over_lo_ewk = self._corrections['W_nlo_over_lo_ewk'](df['genVPt'])
+            weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
+        elif self._year == '2016' and 'DYJetsToQQ' in dataset:
+            nlo_over_lo_qcd = self._corrections['2016_Z_nlo_qcd'](df['genVPt'])
+            nlo_over_lo_ewk = self._corrections['Z_nlo_over_lo_ewk'](df['genVPt'])
+            weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
+        elif self._year == '2016' and 'WJetsToQQ' in dataset:
+            nlo_over_lo_qcd = self._corrections['2016_W_nlo_qcd'](df['genVPt'])
+            nlo_over_lo_ewk = self._corrections['W_nlo_over_lo_ewk'](df['genVPt'])
+            weights.add('kfactor', nlo_over_lo_qcd * nlo_over_lo_ewk)
 
         if not isRealData:
             # handle weight systematics for signal region
             def regionMask(w): return np.where(selection.all('noLeptons'), w, 1.)
             weights.add('trigweight',
-                        regionMask(self._corrections['2017_trigweight_msd_pt'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
-                        regionMask(self._corrections['2017_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
-                        regionMask(self._corrections['2017_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_trigweight_msd_pt'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
                         )
             vmatch = (np.abs(deltaphi(df['AK8Puppijet0_phi'], df['genVPhi'])) < 0.8) & (np.abs(df['AK8Puppijet0_pt']-df['genVPt'])/df['genVPt'] < 0.5) & (np.abs(df['AK8Puppijet0_msd']-df['genVMass'])/df['genVMass'] < 0.3)
             weights.add('matched', np.ones(df.size, dtype='f'), vmatch.astype('f'), 1.-vmatch)
@@ -337,18 +366,18 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             def regionMask(w): return np.where(selection.all('oneMuon'), w, 1.)
             mu_abseta = np.abs(df['vmuoLoose0_eta'])
             weights.add('mutrigweight',
-                        regionMask(self._corrections['2017_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta)),
-                        regionMask(self._corrections['2017_mutrigweight_pt_abseta_mutrigweightShift'](df['vmuoLoose0_pt'], mu_abseta)),
+                        regionMask(self._corrections[f'{self._year}_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta)),
+                        regionMask(self._corrections[f'{self._year}_mutrigweight_pt_abseta_mutrigweightShift'](df['vmuoLoose0_pt'], mu_abseta)),
                         shift=True
                         )
             weights.add('muidweight',
-                        regionMask(self._corrections['2017_muidweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
-                        regionMask(self._corrections['2017_muidweight_abseta_pt_muidweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_muidweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_muidweight_abseta_pt_muidweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
                         shift=True
                         )
             weights.add('muisoweight',
-                        regionMask(self._corrections['2017_muisoweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
-                        regionMask(self._corrections['2017_muisoweight_abseta_pt_muisoweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_muisoweight_abseta_pt'](mu_abseta, df['vmuoLoose0_pt'])),
+                        regionMask(self._corrections[f'{self._year}_muisoweight_abseta_pt_muisoweightShift'](mu_abseta, df['vmuoLoose0_pt'])),
                         shift=True
                         )
 
@@ -359,6 +388,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         hout = self.accumulator.identity()
         for histname, h in hout.items():
             if not isinstance(h, hist.Hist):
+                continue
+            if not all(k in df or k == 'systematic' for k in h.fields):
+                # Cannot fill this histogram due to missing fields
+                # is this an error, warning, or ignorable?
                 continue
             fields = {k: df[k] for k in h.fields if k in df}
             region = [r for r in regions.keys() if r in histname.split('_')]
@@ -389,8 +422,6 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                 raise ValueError("Histogram '%s' does not fall into any region definitions." % (histname, ))
 
         if not isRealData:
-            if dataset not in hout['sumw']:
-                hout['sumw'][dataset] = processor.accumulator(0.)
             if 'skim_sumw' in df:
                 # hacky way to only accumulate file-level information once
                 if df['skim_sumw'] is not None:
@@ -406,11 +437,11 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         if 'sumw_external' in self._corrections:
             normlist = self._corrections['sumw_external']
             for key in accumulator['sumw'].keys():
-                accumulator['sumw'][key].value = normlist[key].value
+                accumulator['sumw'][key] = normlist[key].value
 
         scale = {}
         for dataset, dataset_sumw in accumulator['sumw'].items():
-            scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw.value
+            scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw
             
         for h in accumulator.values():
             if isinstance(h, hist.Hist):
@@ -420,13 +451,21 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
 
 if __name__ == '__main__':
-    with lz4f.open("corrections.cpkl.lz4", mode="rb") as fin:
-        corrections = cloudpickle.load(fin)
+    parser = argparse.ArgumentParser(description='Boosted Hbb processor')
+    parser.add_argument('--year', choices=['2016', '2017', '2018'], default='2017', help='Which data taking year to correct MC to.')
+    parser.add_argument('--debug', action='store_true', help='Enable debug printouts')
+    parser.add_argument('--skipPileup', action='store_true', help='Do not apply pileup reweight corrections to MC')
+    parser.add_argument('--externalSumW', help='Path to external sum weights file (if provided, will be used in place of self-determined sumw)')
+    args = parser.parse_args()
+
+    corrections = load('corrections.coffea')
+
+    if args.externalSumW is not None:
+        corrections['sumw_external'] = load(args.externalSumW)
 
     from columns import gghbbcolumns, gghbbcolumns_mc
     allcolumns = gghbbcolumns + gghbbcolumns_mc
         
-    processor_instance = BoostedHbbProcessor(corrections=corrections,columns=allcolumns)
+    processor_instance = BoostedHbbProcessor(corrections=corrections, columns=allcolumns, debug=args.debug, year=args.year)
 
-    with lz4f.open('boostedHbbProcessor.cpkl.lz4', mode='wb', compression_level=5 ) as fout:
-        cloudpickle.dump(processor_instance, fout)
+    save(processor_instance, 'boostedHbbProcessor.coffea')
