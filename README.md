@@ -3,9 +3,9 @@ A repository for using columnar analysis on bacon(bits) files.
 
 ## Setup
 To use, first an environment must be setup.  If running on your laptop, running
-`pip install fnal-column-analysis-tools jupyter` should get most of the way there.
+`pip install coffea jupyter` should get most of the way there.
 It might be preferable to install some of these things via `conda`.  Note, this is
-a python 3 package, python 2 is end of life so get used to `print()`.
+a python 3 package; python 2 is end of life so get used to `print()`.
 To install at the LPC, there is a script:
 ```bash
 source setup_lcg.sh
