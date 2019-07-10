@@ -282,12 +282,18 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             selection.add('trigger', np.ones(df.size, dtype='bool'))
             selection.add('mutrigger', np.ones(df.size, dtype='bool'))
 
+        btagLooseWPs = {
+            '2016': 0.6321,
+            '2017': 0.4941,
+            '2018': 0.4184,
+        }
+
         selection.add('noLeptons', (df['neleLoose']==0) & (df['nmuLoose']==0) & (df['ntau']==0))
         selection.add('oneMuon', (df['neleLoose']==0) & (df['nmuLoose']==1) & (df['ntau']==0))
         selection.add('muonAcceptance', (df['vmuoLoose0_pt'] > 55.) & (np.abs(df['vmuoLoose0_eta']) < 2.1))
-        selection.add('ak4btagMediumDR08', df['ak4_leadingDeepCSV_dR08'] > 0.4941)  # at least one passes medium cut
         selection.add('muonDphiAK8', df['muon_dphi'] > 2*np.pi/3)
-        selection.add('antiak4btagMediumOppHem', df['opposite_ak4_leadingDeepCSV'] < 0.4941)  # none pass
+        selection.add('ak4btagMediumDR08', df['ak4_leadingDeepCSV_dR08'] > btagLooseWPs[self._year])  # at least one passes medium cut
+        selection.add('antiak4btagMediumOppHem', df['opposite_ak4_leadingDeepCSV'] < btagLooseWPs[self._year])  # none pass
         selection.add('tightVjet', df['AK8Puppijet0_isTightVJet'] != 0)
         selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
         selection.add('jetMass', df['AK8Puppijet0_msd'] > 40.)
