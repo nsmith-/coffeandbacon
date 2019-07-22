@@ -11,12 +11,13 @@ def deltaphi(a, b):
 
 
 class BoostedHbbProcessor(processor.ProcessorABC):
-    def __init__(self, corrections, columns=[], debug=False, year='2017', skipPileup=False):
+    def __init__(self, corrections, columns=[], debug=False, year='2017', skipPileup=False, skipTrigger=False):
         self._columns = columns
         self._corrections = corrections
         self._debug = debug
         self._year = year
         self._skipPileup = skipPileup
+        self._skipTrigger = skipTrigger
 
         dataset_axis = hist.Cat("dataset", "Primary dataset")
         gencat_axis = hist.Bin("AK8Puppijet0_isHadronicV", "V matching index", [0,1,2,3,9,10,11])
@@ -46,7 +47,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         hists['jetpt_preselection'] = hist.Hist("Events",
                                                 dataset_axis,
                                                 gencat_axis,
-                                                hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300),
+                                                hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 50, 300, 1300),
                                                 )
         hists['jeteta_preselection'] = hist.Hist("Events",
                                                  dataset_axis,
@@ -71,7 +72,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         hists['jetpt_signalregion'] = hist.Hist("Events",
                                                 dataset_axis, 
                                                 gencat_axis,
-                                                hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 100, 300, 1300)
+                                                hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 50, 300, 1300),
                                                 )
         hists['sculpt_signalregion'] = hist.Hist("Events",
                                                  dataset_axis,
@@ -82,6 +83,20 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                  doublec_coarse_axis,
                                                  doublecvb_coarse_axis
                                                  )
+        hists['ddb_noselection'] = hist.Hist("Events",
+                                              dataset_axis,
+                                              gencat_axis,
+                                              jetpt_coarse_axis,
+                                              jetmass_coarse_axis,
+                                              doubleb_axis,
+                                             )
+        hists['ddb_signalregion'] = hist.Hist("Events",
+                                              dataset_axis,
+                                              gencat_axis,
+                                              jetpt_coarse_axis,
+                                              jetmass_coarse_axis,
+                                              doubleb_axis,
+                                             )
         hists['tagtensor_signalregion'] = hist.Hist("Events",
                                                     dataset_axis,
                                                     gencat_axis,
@@ -359,7 +374,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
         if not isRealData:
             # handle weight systematics for signal region
-            def regionMask(w): return np.where(selection.all('noLeptons'), w, 1.)
+            def regionMask(w):
+                if self._skipTrigger:
+                    return np.ones(df.size)
+                return np.where(selection.all('noLeptons'), w, 1.)
             weights.add('trigweight',
                         regionMask(self._corrections[f'{self._year}_trigweight_msd_pt'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
                         regionMask(self._corrections[f'{self._year}_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
@@ -369,7 +387,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             weights.add('matched', np.ones(df.size, dtype='f'), vmatch.astype('f'), 1.-vmatch)
 
             # handle weight systematics for muon CR
-            def regionMask(w): return np.where(selection.all('oneMuon'), w, 1.)
+            def regionMask(w):
+                if self._skipTrigger:
+                    return np.ones(df.size)
+                return np.where(selection.all('oneMuon'), w, 1.)
             mu_abseta = np.abs(df['vmuoLoose0_eta'])
             weights.add('mutrigweight',
                         regionMask(self._corrections[f'{self._year}_mutrigweight_pt_abseta'](df['vmuoLoose0_pt'], mu_abseta)),
@@ -461,6 +482,7 @@ if __name__ == '__main__':
     parser.add_argument('--year', choices=['2016', '2017', '2018'], default='2017', help='Which data taking year to correct MC to.')
     parser.add_argument('--debug', action='store_true', help='Enable debug printouts')
     parser.add_argument('--skipPileup', action='store_true', help='Do not apply pileup reweight corrections to MC')
+    parser.add_argument('--skipTrigger', action='store_true', help='Do not apply trigger weight corrections to MC')
     parser.add_argument('--externalSumW', help='Path to external sum weights file (if provided, will be used in place of self-determined sumw)')
     args = parser.parse_args()
 
@@ -472,6 +494,12 @@ if __name__ == '__main__':
     from columns import gghbbcolumns, gghbbcolumns_mc
     allcolumns = gghbbcolumns + gghbbcolumns_mc
         
-    processor_instance = BoostedHbbProcessor(corrections=corrections, columns=allcolumns, debug=args.debug, year=args.year)
+    processor_instance = BoostedHbbProcessor(corrections=corrections,
+                                             columns=allcolumns,
+                                             debug=args.debug,
+                                             year=args.year,
+                                             skipPileup=args.skipPileup,
+                                             skipTrigger=args.skipTrigger,
+                                             )
 
     save(processor_instance, 'boostedHbbProcessor.coffea')
