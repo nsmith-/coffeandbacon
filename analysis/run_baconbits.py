@@ -2,6 +2,7 @@
 import json
 import time
 import argparse
+import glob
 from tqdm import tqdm
 
 import uproot
@@ -64,7 +65,7 @@ def validate(dataset, file):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor coffea files')
     parser.add_argument('--processor', default='boostedHbbProcessor.coffea', help='The name of the compiled processor file (default: %(default)s)')
-    parser.add_argument('--output', default='hists.coffea', help='Output histogram filename (default: %(default)s)')
+    parser.add_argument('--output', default=r'hists_{sample}.coffea', help='Output histogram filename (default: %(default)s)')
     parser.add_argument('--samplejson', default='metadata/samplefiles.json', help='JSON file containing dataset and file locations (default: %(default)s)')
     parser.add_argument('--sample', default='test_skim', help='The sample to use in the sample JSON (default: %(default)s)')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
@@ -73,6 +74,8 @@ if __name__ == '__main__':
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     parser.add_argument('--profile-out', dest='profilehtml', default=None, help='Filename for the pyinstrument HTML profile output')
     args = parser.parse_args()
+    if args.output == parser.get_default('output'):
+        args.output = 'hists_%s.coffea' % args.sample
 
     # Set a list of preloaded columns, to profile the execution separately from the uproot deserialization
     preload_items = {}
@@ -84,6 +87,11 @@ if __name__ == '__main__':
     sample = samplefiles[args.sample]
     filelist = []
     for dataset, files in sample.items():
+        if type(files) is str:
+            if files.startswith('root://'):
+                raise ValueError("glob not supported over xrootd (yet)")
+            prefix = 'root://cmseos.fnal.gov/' if files.startswith('/eos/uscms/') else ''
+            files = [prefix + f for f in glob.glob(files)]
         for file in files[:args.limit]:
             filelist.append((dataset, file))
 
