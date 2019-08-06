@@ -47,6 +47,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         hists['jetpt_preselection'] = hist.Hist("Events",
                                                 dataset_axis,
                                                 gencat_axis,
+                                                hist.Bin("runNum", "Run number", [294927, 297046, 299368, 302030, 303824, 305040, 306546]),
                                                 hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 50, 300, 1300),
                                                 )
         hists['jeteta_preselection'] = hist.Hist("Events",
@@ -278,6 +279,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
     def process(self, df):
         dataset = df['dataset']
+        if self._debug:
+            print("Processing dataframe from", dataset)
         isRealData = dataset in ["JetHT", "SingleMuon"]
 
         self.build_leading_ak8_variables(df)
@@ -293,6 +296,9 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # (this plus mutually exclusive offline selections are sufficient)
             selection.add('trigger', (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool') & (dataset=="JetHT"))
             selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool') & (dataset=="SingleMuon"))
+            if self._debug:
+                print("Trigger pass/all", selection.all('trigger').sum(), df.size)
+                print("Muon trigger pass/all", selection.all('mutrigger').sum(), df.size)
         else:
             selection.add('trigger', np.ones(df.size, dtype='bool'))
             selection.add('mutrigger', np.ones(df.size, dtype='bool'))
@@ -419,6 +425,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             if not all(k in df or k == 'systematic' for k in h.fields):
                 # Cannot fill this histogram due to missing fields
                 # is this an error, warning, or ignorable?
+                if self._debug:
+                    print("Missing fields %r from %r" % (set(h.fields) - set(df.keys()), h))
                 continue
             fields = {k: df[k] for k in h.fields if k in df}
             region = [r for r in regions.keys() if r in histname.split('_')]
