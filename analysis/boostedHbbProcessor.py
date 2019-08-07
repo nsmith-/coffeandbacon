@@ -482,8 +482,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             if dataset in self._corrections['xsections']:
                 scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw
             else:
-                warnings.warn("Missing cross section for dataset %s" % dataset, RuntimeWarning)
-                scale[dataset] = 1.
+                warnings.warn("Missing cross section for dataset %s.  Normalizing to 1 pb" % dataset, RuntimeWarning)
+                scale[dataset] = lumi / dataset_sumw
             
         for h in accumulator.values():
             if isinstance(h, hist.Hist):
