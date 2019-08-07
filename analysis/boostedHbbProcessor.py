@@ -237,8 +237,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         self.clean(df, 'AK8Puppijet0_deepdoublec', -1.)
         self.clean(df, 'AK8Puppijet0_deepdoublecvb', -1.)
         df['AK8Puppijet0_msd_raw'] = df['AK8Puppijet0_msd']
+        # https://github.com/kakwok/ZPrimePlusJet/blob/PerBinEff/fitting/PbbJet/buildRhalphabetHbb.py#L30
+        msdshifts = {'2016': 1.001, '2017': 0.979, '2018': 0.970}
         # for very large pt values, correction can become negative
-        df['AK8Puppijet0_msd'] = np.maximum(1e-7, df['AK8Puppijet0_msd']*self._corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
+        df['AK8Puppijet0_msd'] = msdshifts[self._year] * np.maximum(1e-7, df['AK8Puppijet0_msd']*self._corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
         df['ak8jet_rho'] = 2*np.log(df['AK8Puppijet0_msd']/df['AK8Puppijet0_pt'])
         df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - self._corrections[f'{self._year}_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
 
@@ -281,7 +283,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         dataset = df['dataset']
         if self._debug:
             print("Processing dataframe from", dataset)
-        isRealData = dataset in ["JetHT", "SingleMuon"]
+        isRealData = dataset in ["JetHT", "SingleMuon", "data_obs_mu", "data_obs_jet"]
 
         self.build_leading_ak8_variables(df)
         self.build_subleading_ak8_variables(df)
