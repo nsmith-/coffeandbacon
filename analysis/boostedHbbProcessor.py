@@ -4,6 +4,7 @@ import numpy as np
 from coffea import hist, processor
 from coffea.util import load, save
 import argparse
+import warnings
 
 
 def deltaphi(a, b):
@@ -478,7 +479,11 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
         scale = {}
         for dataset, dataset_sumw in accumulator['sumw'].items():
-            scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw
+            if dataset in self._corrections['xsections']:
+                scale[dataset] = lumi*self._corrections['xsections'][dataset]/dataset_sumw
+            else:
+                warnings.warn("Missing cross section for dataset %s" % dataset, RuntimeWarning)
+                scale[dataset] = 1.
             
         for h in accumulator.values():
             if isinstance(h, hist.Hist):
