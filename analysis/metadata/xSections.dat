@@ -1,5 +1,3 @@
-
-
 ######################################
 ## Cross section in pb for datasets
 ##
@@ -311,8 +309,11 @@ GluGluHToBB_M125_13TeV_powheg_pythia8                        48.85*5.824E-01
 GluGluHToBB_M125_13TeV_amcatnloFXFX_pythia8                48.85*5.824E-01
 GluGluHToBB_M125_13TeV_powheg_herwigpp                        48.85*5.824E-01
 GluGluHToBB_M125_LHEHpT_250_Inf_13TeV_amcatnloFXFX_pythia8   0.3447 # from GenXsecAnalyzer 
+GluGluHToCC_M125_13TeV_powheg_pythia8 					48.85*5.824E-01*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
+GluGluHToCC_M125_13TeV_amcatnloFXFX_pythia8 			48.85*5.824E-01*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
 GluGluHToCC_M125_LHEHpT_250_Inf_13TeV_amcatnloFXFX_pythia8   0.3447*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
 GluGluHToBB_M-125_13TeV_powheg_MINLO_NNLOPS_pythia8          2.780e+01 #from GenXsecAnalyzer 
+GluGluHToCC_M-125_13TeV_powheg_MINLO_NNLOPS_pythia8          2.780e+01*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
 VBFHToBB_M125_13TeV_amcatnlo_pythia8                        3.782*5.824E-01
 VBFHToBB_M_125_13TeV_powheg_pythia8_weightfix                3.782*5.824E-01
 VBFHToCC_M-125_13TeV_powheg_pythia8 3.782 * 2.891e-2 # FIXME: rescaling cc/bb
