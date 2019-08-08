@@ -238,10 +238,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         self.clean(df, 'AK8Puppijet0_deepdoublec', -1.)
         self.clean(df, 'AK8Puppijet0_deepdoublecvb', -1.)
         df['AK8Puppijet0_msd_raw'] = df['AK8Puppijet0_msd']
-        # https://github.com/kakwok/ZPrimePlusJet/blob/PerBinEff/fitting/PbbJet/buildRhalphabetHbb.py#L30
-        msdshifts = {'2016': 1.001, '2017': 0.979, '2018': 0.970}
         # for very large pt values, correction can become negative
-        df['AK8Puppijet0_msd'] = msdshifts[self._year] * np.maximum(1e-7, df['AK8Puppijet0_msd']*self._corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
+        df['AK8Puppijet0_msd'] = np.maximum(1e-7, df['AK8Puppijet0_msd']*self._corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
         df['ak8jet_rho'] = 2*np.log(df['AK8Puppijet0_msd']/df['AK8Puppijet0_pt'])
         df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - self._corrections[f'{self._year}_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
 
@@ -342,6 +340,14 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             selection.add('jetKinematics'+syst, df['AK8Puppijet0_pt_'+syst] > 450)
             selection.add('jetKinematicsMuonCR'+syst, df['AK8Puppijet0_pt_'+syst] > 400.)
             selection.add('pfmet'+syst, df['pfmet_'+syst] < 140.)
+
+        # mass shift applied only to V-matched data
+        # https://github.com/kakwok/ZPrimePlusJet/blob/PerBinEff/fitting/PbbJet/buildRhalphabetHbb.py#L30
+        if not isRealData:
+            shiftSystematics.append('matchedUp')
+            shiftedQuantities.add('AK8Puppijet0_msd')
+            msdshifts = {'2016': 1.001, '2017': 0.979, '2018': 0.970}
+            df['AK8Puppijet0_msd_matchedUp'] = msdshifts[self._year] * df['AK8Puppijet0_msd']
 
         weights = processor.Weights(df.size)
 
@@ -445,15 +451,38 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                 cut = selection.all(*regions[region])
                 h.fill(systematic="", **fields, weight=weight*cut)
                 if 'systematic' in h.fields:
-                    for syst in weights.variations:
-                        h.fill(systematic=syst, **fields, weight=weights.weight(syst)*cut)
-                    for syst in shiftSystematics:
-                        cut = {s for s in regions[region] if s not in shiftedSelections}
-                        cut.update({s+syst for s in regions[region] if s in shiftedSelections})
-                        cut = selection.all(*cut)
+                    if self._debug:
+                        print("Filling systematics for %s" % histname)
+                    systs = set(weights.variations)
+                    systs.update(shiftSystematics)
+                    for syst in systs:
+                        if self._debug:
+                            print("  Filling systematic %s" % syst)
+                        fields_syst = fields
                         for val in shiftedQuantities:
-                            fields[val] = df[val+'_'+syst]
-                        h.fill(systematic=syst, **fields, weight=weight*cut)
+                            if val+'_'+syst in df:
+                                fields_syst[val] = df[val+'_'+syst]
+                                if self._debug:
+                                    print("    Replacing field %s with %s" % (val, val+'_'+syst))
+                        if syst in weights.variations:
+                            weight_syst = weights.weight(syst)
+                            if self._debug:
+                                print("    Using modified weight")
+                        else:
+                            weight_syst = weight
+                        if syst in set(shiftSystematics):
+                            cut_syst = set()
+                            for sel in regions[region]:
+                                if sel in shiftedSelections and sel+syst in selection.names:
+                                    cut_syst.add(sel+syst)
+                                    if self._debug:
+                                        print("    Replacing cut %s with systematic-shifted %s" % (sel, sel+syst))
+                                else:
+                                    cut_syst.add(sel)
+                            cut_syst = selection.all(*cut_syst)
+                        else:
+                            cut_syst = cut
+                        h.fill(systematic=syst, **fields_syst, weight=weight_syst*cut_syst)
             elif len(region) > 1:
                 raise ValueError("Histogram '%s' has a name matching multiple region definitions: %r" % (histname, region))
             else:
