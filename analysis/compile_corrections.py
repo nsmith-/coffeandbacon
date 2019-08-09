@@ -161,6 +161,8 @@ corrections['2016_pileupweight_puUp'] = pileup_corr_puUp
 corrections['2016_pileupweight_puDown'] = pileup_corr_puDown
 
 pileup_corr = load('correction_files/pileup_mc.coffea')
+del pileup_corr['data_obs_jet']
+del pileup_corr['data_obs_mu']
 with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Collisions17_withVar.root") as fin_pileup:
     norm = lambda x: x / x.sum()
     data_pu = norm(fin_pileup["pileup"].values)
