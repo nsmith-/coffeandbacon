@@ -102,22 +102,28 @@ with uproot.open("correction_files/kfactors.root") as kfactors:
     ewkW_denom = kfactors['WJets_012j_NLO/nominal']
     ewkZ_denom = kfactors['ZJets_012j_NLO/nominal']
 
-corrections['W_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkW_num.values / ewkW_denom.values, ewkW_num.edges)
-corrections['Z_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkZ_num.values / ewkZ_denom.values, ewkZ_num.edges)
+edges = ewkW_num.edges
+assert(all(np.array_equal(edges, h.edges) for h in [ewkW_denom, ewkZ_num, ewkZ_denom]))
+ptrange = slice(np.searchsorted(edges, 250.), np.searchsorted(edges, 1000.) + 1)
+corrections['W_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkW_num.values[ptrange] / ewkW_denom.values[ptrange], edges[ptrange])
+corrections['Z_nlo_over_lo_ewk'] = lookup_tools.dense_lookup.dense_lookup(ewkZ_num.values[ptrange] / ewkZ_denom.values[ptrange], edges[ptrange])
 
 with uproot.open("correction_files/WJets_QCD_NLO.root") as kfactors:
     qcdW_2016_nlo = kfactors['W_NLO_QCD_2016']
     qcdW_2017_nlo = kfactors['W_NLO_QCD_2017']
 
-corrections['2016_W_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdW_2016_nlo.values, qcdW_2016_nlo.edges)
-corrections['2017_W_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdW_2017_nlo.values, qcdW_2017_nlo.edges)
-
 with uproot.open("correction_files/ZJets_QCD_NLO.root") as kfactors:
     qcdZ_2016_nlo = kfactors['Z_NLO_QCD_2016']
     qcdZ_2017_nlo = kfactors['Z_NLO_QCD_2017']
 
-corrections['2016_Z_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdZ_2016_nlo.values, qcdZ_2016_nlo.edges)
-corrections['2017_Z_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdZ_2017_nlo.values, qcdZ_2017_nlo.edges)
+edges = qcdW_2016_nlo.edges
+assert(all(np.array_equal(edges, h.edges) for h in [qcdW_2017_nlo, qcdZ_2016_nlo, qcdZ_2017_nlo]))
+ptrange = slice(np.searchsorted(edges, 250.), np.searchsorted(edges, 1000.) + 1)
+
+corrections['2016_W_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdW_2016_nlo.values[ptrange], edges[ptrange])
+corrections['2017_W_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdW_2017_nlo.values[ptrange], edges[ptrange])
+corrections['2016_Z_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdZ_2016_nlo.values[ptrange], edges[ptrange])
+corrections['2017_Z_nlo_qcd'] = lookup_tools.dense_lookup.dense_lookup(qcdZ_2017_nlo.values[ptrange], edges[ptrange])
 
 
 with uproot.open("correction_files/pileUp_Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.root") as fin_pileup:
@@ -164,6 +170,9 @@ with uproot.open("correction_files/pileup_Cert_294927-306462_13TeV_PromptReco_Co
     pileup_corr_puUp = {}
     pileup_corr_puDown = {}
     for k in pileup_corr.keys():
+        if pileup_corr[k].value.sum() == 0:
+            print("sample has no MC pileup:", k)
+            continue
         mc_pu = norm(pileup_corr[k].value)
         mask = mc_pu > 0.
         corr = data_pu.copy()
