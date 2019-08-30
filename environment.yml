@@ -1,0 +1,16 @@
+name: coffeandbacon
+channels:
+  - conda-forge
+dependencies:
+  - numpy
+  - awkward
+  - uproot
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - pytorch
+  - numba
+  - root
+  - pip
+  - pip:
+      - coffea
