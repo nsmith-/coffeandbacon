@@ -40,10 +40,11 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         hists = processor.dict_accumulator()
         hist.Hist.DEFAULT_DTYPE = 'f'  # save some space by keeping float bin counts instead of double
         hists['sumw'] = processor.defaultdict_accumulator(int)
-        hists['genVpt_noselection'] = hist.Hist("Events / 20 GeV",
+        hists['deepcsv_efficiency'] = hist.Hist("Events",
                                                 dataset_axis,
-                                                gencat_axis,
-                                                hist.Bin("genVPt", "Gen. V $p_T$", 60, 0, 1200),
+                                                hist.Cat("region", "pass/fail btag WP"),
+                                                hist.Bin("ak4_pt", "Jet pT", 50, 0, 1000),
+                                                hist.Bin("ak4_flavor", "Jet flavor", [0, 4, 5, 21, 22]),
                                                 )
         hists['jetpt_preselection'] = hist.Hist("Events",
                                                 dataset_axis,
@@ -262,9 +263,14 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         dphi = stack('dPhi08')
         btag = stack('deepcsvb') + stack('deepcsvbb')
         pt = stack('pt')
+        flavor = stack('partonFlavor')
         # seems |eta|<2.5 already in tuple
         require = (np.abs(dphi) > np.pi/2) & (pt > 30.)
         btag_ttrej = np.where(require, btag, -np.inf)
+        df['ak4_flavor_stack'] = flavor
+        df['ak4_pt_stack'] = pt
+        df['ak4_btag_stack'] = btag
+        df['ak4_filter_stack'] = require
         df['opposite_ak4_leadingDeepCSV'] = np.max(btag_ttrej, axis=1)
         require = (dR > 0.8) & (pt > 50.)
         btag_muCR = np.where(require, btag, -np.inf)
@@ -431,6 +437,24 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         for histname, h in hout.items():
             if not isinstance(h, hist.Hist):
                 continue
+
+            # special histograms
+            if histname == 'deepcsv_efficiency':
+                weight = (weights.weight() * selection.all(*regions['preselection']))[:,None] * df['ak4_filter_stack']
+                h.fill(dataset=dataset,
+                       ak4_pt=df['ak4_pt_stack'].flatten(),
+                       ak4_flavor=df['ak4_flavor_stack'].flatten(),
+                       region='pass',
+                       weight=(weight * (df['ak4_btag_stack'] > btagLooseWPs[self._year])).flatten()
+                       )
+                h.fill(dataset=dataset,
+                       ak4_pt=df['ak4_pt_stack'].flatten(),
+                       ak4_flavor=df['ak4_flavor_stack'].flatten(),
+                       region='fail',
+                       weight=(weight * (df['ak4_btag_stack'] <= btagLooseWPs[self._year])).flatten()
+                       )
+                continue
+
             if not all(k in df or k == 'systematic' for k in h.fields):
                 # Cannot fill this histogram due to missing fields
                 # is this an error, warning, or ignorable?
