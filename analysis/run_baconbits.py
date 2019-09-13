@@ -21,7 +21,7 @@ if not hasattr(uproot.source.xrootd.XRootDSource, '_read_real'):
     uproot.source.xrootd.XRootDSource._read = _read
 
 
-def process_file(dataset, file, processor_instance, stats_accumulator, preload_items=None):
+def process_file(dataset, file, processor_instance, stats_accumulator, preload_items=None, stride=500000):
     fin = uproot.open(file)
     skim_sumw = None
     if 'otree' in fin:
@@ -35,7 +35,6 @@ def process_file(dataset, file, processor_instance, stats_accumulator, preload_i
 
     output = processor_instance.accumulator.identity()
     # would be cool to use columns_accessed and work time to dynamically optimize this
-    stride = 500000
     for index in range(tree.numentries//stride + 1):
         df = processor.LazyDataFrame(tree, stride, index, preload_items=preload_items)
         df['dataset'] = dataset
@@ -69,6 +68,7 @@ if __name__ == '__main__':
     parser.add_argument('--samplejson', default='metadata/samplefiles.json', help='JSON file containing dataset and file locations (default: %(default)s)')
     parser.add_argument('--sample', default='test_skim', help='The sample to use in the sample JSON (default: %(default)s)')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
+    parser.add_argument('--stride', type=int, default=500000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
     parser.add_argument('--executor', choices=['iterative', 'futures'], default='iterative', help='The type of executor to use (default: %(default)s)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
@@ -117,7 +117,7 @@ if __name__ == '__main__':
 
     def work_function(item):
         dataset, file = item
-        out, stats = process_file(dataset, file, processor_instance, combined_accumulator['stats'], preload_items)
+        out, stats = process_file(dataset, file, processor_instance, combined_accumulator['stats'], preload_items, args.stride)
         return processor.dict_accumulator({'stats': stats, 'job': out})
 
     tstart = time.time()
