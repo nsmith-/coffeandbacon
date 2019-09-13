@@ -80,4 +80,4 @@ process_map["data_obs"] = [
 ]
 
 def apply(h):
-    return h.group(process, process_cat, process_map)
+    return h.group(process_cat, process, process_map)

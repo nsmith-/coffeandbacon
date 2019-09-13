@@ -13,7 +13,7 @@ from coffea import hist
 from coffea.util import load, save
 import processmap
 
-hists_unmapped = load('hists.coffea')
+hists_unmapped = load('hists_Hbb_create_2017.coffea')
 
 
 hists = {}
@@ -50,9 +50,9 @@ for proc in h.identifiers('process'):
                             )
             content = fail_template.sum('AK8Puppijet0_msd').values()
             if content == {} or content[()] == 0.:
-                print(proc, ptbin, syst)
+                print("Missing", proc, ptbin, syst)
                 continue
-            sname = "_%s" % syst if syst != '' else ''
+            sname = "_%s" % syst if syst.name != '' else ''
             name = "%s_pass%s_bin%d" % (proc, sname, i)
             fout[name] = hist.export1d(pass_template)
             name = "%s_fail%s_bin%d" % (proc, sname, i)
