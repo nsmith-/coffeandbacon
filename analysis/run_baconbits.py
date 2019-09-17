@@ -4,8 +4,11 @@ import time
 import argparse
 import glob
 from tqdm import tqdm
+import os
+import hashlib
 
 import uproot
+import awkward
 import numpy as np
 from coffea import hist, processor
 from coffea.util import load, save
@@ -21,7 +24,7 @@ if not hasattr(uproot.source.xrootd.XRootDSource, '_read_real'):
     uproot.source.xrootd.XRootDSource._read = _read
 
 
-def process_file(dataset, file, processor_instance, stats_accumulator, preload_items=None, stride=500000):
+def process_file(dataset, file, processor_instance, stats_accumulator, preload_items=None, stride=500000, join_dir=None):
     fin = uproot.open(file)
     skim_sumw = None
     if 'otree' in fin:
@@ -31,6 +34,13 @@ def process_file(dataset, file, processor_instance, stats_accumulator, preload_i
     else:
         tree = fin['Events']
 
+    join_cols = awkward.Table()
+    if join_dir is not None:
+        hashname = hashlib.sha256(file.encode('ascii')).hexdigest()
+        path = "%s/%s.awkd" % (join_dir, hashname)
+        if os.path.exists(path):
+            join_cols = awkward.load(path)
+
     tic = time.time()
 
     output = processor_instance.accumulator.identity()
@@ -38,6 +48,9 @@ def process_file(dataset, file, processor_instance, stats_accumulator, preload_i
     for index in range(tree.numentries//stride + 1):
         df = processor.LazyDataFrame(tree, stride, index, preload_items=preload_items)
         df['dataset'] = dataset
+        join_chunk = join_cols[index*stride:index*stride + df.size]
+        for cname in join_chunk.columns:
+            df[cname] = join_chunk[cname]
         # hacky way to only accumulate file-level information once
         if 'otree' in fin:
             df['skim_sumw'] = skim_sumw if index == 0 else None
@@ -69,6 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('--sample', default='test_skim', help='The sample to use in the sample JSON (default: %(default)s)')
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
     parser.add_argument('--stride', type=int, default=500000, metavar='N', help='Number of events per process chunk')
+    parser.add_argument('--join_dir', default=None, help='Directory where to look for awkd files of additional columns to join (one per input file, default: %(default)s)')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
     parser.add_argument('--executor', choices=['iterative', 'futures'], default='iterative', help='The type of executor to use (default: %(default)s)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
@@ -117,7 +131,7 @@ if __name__ == '__main__':
 
     def work_function(item):
         dataset, file = item
-        out, stats = process_file(dataset, file, processor_instance, combined_accumulator['stats'], preload_items, args.stride)
+        out, stats = process_file(dataset, file, processor_instance, combined_accumulator['stats'], preload_items, args.stride, args.join_dir)
         return processor.dict_accumulator({'stats': stats, 'job': out})
 
     tstart = time.time()

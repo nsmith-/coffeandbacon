@@ -168,6 +168,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                     dataset_axis,
                                                     gencat_axis,
                                                     hist.Cat("systematic", "Systematic"),
+                                                    hist.Bin("HTXS_stage1_1_cat_pTjet30GeV", "STXS bin", [0, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 300, 301, 302, 303, 304, 305, 400, 401, 402, 403, 404, 405, 500, 501, 502, 503, 504, 505, 600, 601, 700, 701, 800, 801, 802]),
                                                     jetpt_axis,
                                                     jetmass_axis,
                                                     doubleb_coarse_axis
@@ -284,6 +285,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         if self._debug:
             print("Processing dataframe from", dataset)
         isRealData = dataset in ["JetHT", "SingleMuon", "data_obs_mu", "data_obs_jet"]
+        if 'HTXS_stage1_1_cat_pTjet30GeV' not in df:
+            df['HTXS_stage1_1_cat_pTjet30GeV'] = 0
 
         self.build_leading_ak8_variables(df)
         self.build_subleading_ak8_variables(df)
