@@ -14,8 +14,9 @@ process_map["whqq125"] = [
 ]
 process_map["zhqq125"] = [
     "ZH_HToBB_ZToQQ_M125_13TeV_powheg_pythia8",
-    "ggZH_HToBB_ZToQQ_M125_13TeV_powheg_pythia8",
     "ZH_HToBB_ZToNuNu_M125_13TeV_powheg_pythia8",
+    "ggZH_HToBB_ZToQQ_M125_13TeV_powheg_pythia8",
+    "ggZH_HToBB_ZToNuNu_M125_13TeV_powheg_pythia8",
 ]
 process_map["vbfhqq125"] = [
     "VBFHToBB_M_125_13TeV_powheg_pythia8_weightfix",

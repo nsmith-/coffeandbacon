@@ -99,15 +99,6 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                               jetmass_coarse_axis,
                                               doubleb_axis,
                                              )
-        hists['tagtensor_signalregion'] = hist.Hist("Events",
-                                                    dataset_axis,
-                                                    gencat_axis,
-                                                    jetpt_coarse_axis,
-                                                    jetmass_coarse_axis,
-                                                    doubleb_axis,
-                                                    doublec_axis,
-                                                    doublecvb_axis
-                                                    )
         hists['opposite_ak8_n3sdb1_signalregion'] = hist.Hist("Events",
                                                               dataset_axis,
                                                               gencat_axis,
@@ -205,6 +196,9 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                    jetmass_axis,
                                                    doublec_coarse_axis
                                                    )
+        #                                           hist.Bin("ak8jet_n2ddt", r"Jet N_{2,ddt}^{\beta=1}", 8, -.2, .2),
+        #                                           hist.Bin("ak8jet_p_bb", r"Jet p_{bb}", 50, 0, 1),
+        #                                           hist.Bin("ak8jet_p_cc", r"Jet p_{cc}", 50, 0, 1),
         self._accumulator = hists
 
     @property
@@ -242,6 +236,13 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         df['AK8Puppijet0_msd'] = np.maximum(1e-7, df['AK8Puppijet0_msd']*self._corrections['msdweight'](df['AK8Puppijet0_pt'], df['AK8Puppijet0_eta']))
         df['ak8jet_rho'] = 2*np.log(df['AK8Puppijet0_msd']/df['AK8Puppijet0_pt'])
         df['ak8jet_n2ddt'] = df['AK8Puppijet0_N2sdb1'] - self._corrections[f'{self._year}_n2ddt_rho_pt'](df['ak8jet_rho'], df['AK8Puppijet0_pt'])
+        if 'multiclass' in self._corrections:
+            multiclass = self._corrections['multiclass'](df['AK8Puppijet0_deepdoubleb'], df['AK8Puppijet0_deepdoublec'], df['AK8Puppijet0_deepdoublecvb'])
+            df['ak8jet_p_bb'] = multiclass[:, 2]
+            df['ak8jet_p_cc'] = multiclass[:, 1]
+        else:
+            df['ak8jet_p_bb'] = (df['AK8Puppijet0_deepdoubleb'] + 1 - df['AK8Puppijet0_deepdoublecvb']) / 3.
+            df['ak8jet_p_cc'] = (df['AK8Puppijet0_deepdoublec'] + df['AK8Puppijet0_deepdoublecvb']) / 3.
 
     def subleading_n3(self, df):
         e4_v2_jet1 = self.clean(df, 'AK8Puppijet1_e4_v2_sdb1', 1.)
@@ -528,12 +529,16 @@ if __name__ == '__main__':
     parser.add_argument('--skipPileup', action='store_true', help='Do not apply pileup reweight corrections to MC')
     parser.add_argument('--skipTrigger', action='store_true', help='Do not apply trigger weight corrections to MC')
     parser.add_argument('--externalSumW', help='Path to external sum weights file (if provided, will be used in place of self-determined sumw)')
+    parser.add_argument('--multiclass', help='Path to multiclass transform NN model')
     args = parser.parse_args()
 
     corrections = load('corrections.coffea')
 
     if args.externalSumW is not None:
         corrections['sumw_external'] = load(args.externalSumW)
+
+    if args.multiclass is not None:
+        corrections['multiclass'] = load(args.multiclass)
 
     from columns import gghbbcolumns, gghbbcolumns_mc
     allcolumns = gghbbcolumns + gghbbcolumns_mc
