@@ -2,8 +2,6 @@
 from __future__ import print_function, division
 from collections import defaultdict
 import gzip
-import lz4.frame as lz4f
-import cloudpickle as cpkl
 import json
 import re
 import os
@@ -11,12 +9,11 @@ import os
 import uproot
 import numpy as np
 
-from fnal_column_analysis_tools import hist
-from fnal_column_analysis_tools.hist import export
+from coffea import hist
+from coffea.util import load, save
 import processmap
 
-with lz4f.open("hists.cpkl.lz4") as fin:
-    hists_unmapped = cpkl.load(fin)
+hists_unmapped = load('hists_Hbb_create_2017.coffea')
 
 
 hists = {}
@@ -53,13 +50,13 @@ for proc in h.identifiers('process'):
                             )
             content = fail_template.sum('AK8Puppijet0_msd').values()
             if content == {} or content[()] == 0.:
-                print(proc, ptbin, syst)
+                print("Missing", proc, ptbin, syst)
                 continue
-            sname = "_%s" % syst if syst != '' else ''
+            sname = "_%s" % syst if syst.name != '' else ''
             name = "%s_pass%s_bin%d" % (proc, sname, i)
-            fout[name] = export.export1d(pass_template)
+            fout[name] = hist.export1d(pass_template)
             name = "%s_fail%s_bin%d" % (proc, sname, i)
-            fout[name] = export.export1d(fail_template)
+            fout[name] = hist.export1d(fail_template)
 
 fout.close()
 
@@ -105,8 +102,8 @@ for proc in h.identifiers('process'):
         for k,v in rename.items():
             sname = sname.replace(k, v)
         name = "%s_pass%s" % (proc, sname)
-        fout[name] = export.export1d(pass_template)
+        fout[name] = hist.export1d(pass_template)
         name = "%s_fail%s" % (proc, sname)
-        fout[name] = export.export1d(fail_template)
+        fout[name] = hist.export1d(fail_template)
 
 fout.close()
