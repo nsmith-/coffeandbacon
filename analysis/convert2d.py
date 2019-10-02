@@ -4,8 +4,17 @@ ROOT.gROOT.SetBatch(True)
 import re
 import numpy as np
 
-fin = ROOT.TFile.Open("templates.root")
-fout = ROOT.TFile.Open("hist_1DZbb_pt_scalesmear.root", "recreate")
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--cc", default=False, action='store_true', help="Make templates for Hcc")
+args = parser.parse_args()
+
+if args.cc: 
+    fin = ROOT.TFile.Open("templatesCC.root")
+    fout = ROOT.TFile.Open("hist_1DZcc_pt_scalesmear.root", "recreate")
+else: 
+    fin = ROOT.TFile.Open("templates.root")
+    fout = ROOT.TFile.Open("hist_1DZbb_pt_scalesmear.root", "recreate")
 
 hists1d = {}
 for k in fin.GetListOfKeys():
@@ -30,6 +39,8 @@ fout.cd()
 hists2d = {}
 for hname in set(binre.sub('', k) for k in hists1d.keys()):
     hnamerhalph = hname
+    if hnamerhalph.endswith("_"): hnamerhalph = hnamerhalph[:-1]
+    #print(hnamerhalph)
     for k,v in rename.items():
         hnamerhalph = hnamerhalph.replace(k, v)
     hist = ROOT.TH2D(hnamerhalph, ";msd;pt;counts", len(msd)-1, msd, len(pt)-1, pt)

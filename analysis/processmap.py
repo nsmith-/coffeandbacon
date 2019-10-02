@@ -24,6 +24,9 @@ process_map["vbfhqq125"] = [
 process_map["hqq125"] = [
     "GluGluHToBB_M125_13TeV_powheg_pythia8",
 ]
+process_map["hcc125"] = [
+    "GluGluHToCC_M125_LHEHpT_250_Inf_13TeV_amcatnloFXFX_pythia8",
+]
 
 process_map["zll"] = [
     "DYJetsToLL_M_50_HT_2500toInf_TuneCP5_13TeV",

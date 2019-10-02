@@ -12,24 +12,24 @@ source setup_lcg.sh
 ```
 On future use at LPC, run `source env_lcg.sh`.
 
-### Conda setup
-```
-# Install conda if you don't have it
+
+### Setup using conda
+#### Install conda if you don't have it
+```bash
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
 ```
-``` 
-# Install the environment (might take a while, contains its own ROOT)
-conda-env create -n coffea -f=coffea.yml
+#### Install the environment (might take a while, contains its own ROOT)
+```bash
+conda-env create -n coffea -f=coffea_env.yml
 conda activate coffea
 ```
-Afterwards activating the environemnt should be enough
 
 ## Running the Hbb analysis on baconbits
 The following recipe runs all the relevant code to produce templates similar to those of `sampleContainer`:
 ```bash
 cd analysis
-# optional, because output saved in repository: ./make_pileup.py
+./make_pileup.py
 ./compile_corrections.py
 ./boostedHbbProcessor.py
 ./run_baconbits.py --executor futures --sample Hbb_2017
@@ -37,7 +37,19 @@ python baconbits-templates.py
 python convert2d.py
 ls hist_1DZbb*
 ```
-This will take about 25 minutes to run.  To just get your feet wet, look at `./run_baconbits.py --help`, then run
+#### Running Hcc
+```bash
+cd analysis
+./make_pileup.py --samplejson samplecc.json --sample Hbb_create_2017
+./compile_corrections.py
+./boostedHbbProcessor.py
+./run_baconbits.py --executor futures --samplejson samplecc.json --sample Hbb_create_2017 -j 10<or other number of cores>
+python baconbits-templates.py --cc --split
+python convert2d.py --cc --split
+ls hist_1DZcc*
+```
+
+To just get your feet wet, look at `./run_baconbits.py --help`, then run
 ```bash
 ./download_testbits.sh
 ./run_baconbits.py --sample test_bits
