@@ -17,9 +17,11 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--cc", default=False, action='store_true', help="Make templates for Hcc")
 parser.add_argument("--split", default=False, action='store_true', help="Split W/Z by flavor")
+parser.add_argument("--three-regions", default=False, action='store_true', help="Split by max prob pbb/pcc/pqq")
 args = parser.parse_args()
 
-hists_unmapped = load('hists.coffea')
+#hists_unmapped = load('hists.coffea')
+hists_unmapped = load('hists_Hbb_create_2017.coffea')
 
 
 hists = {}
@@ -60,32 +62,34 @@ for proc in proc_names:
             else:
                 mproj = (slice(None), 'all')
             systreal = syst
-            if args.cc:
+            if args.threeregions:
+                pass
+            elif args.cc:
                 fail_template = (h.project('process', source_proc)
                                   .project('AK8Puppijet0_isHadronicV', *mproj)
                                   .project('systematic', systreal)
                                   .project('AK8Puppijet0_pt', ptbin)
                                   .project('AK8Puppijet0_deepdoublec', slice(None,0.83), overflow='under')
-                                )
+                                 )
                 pass_template = (h.project('process', source_proc)
                                   .project('AK8Puppijet0_isHadronicV', *mproj)
                                   .project('systematic', systreal)
                                   .project('AK8Puppijet0_pt', ptbin)
                                   .project('AK8Puppijet0_deepdoublec', slice(0.83,None))
-                                )
+                                 )
             else:
                 fail_template = (h.project('process', source_proc)
                                   .project('AK8Puppijet0_isHadronicV', *mproj)
                                   .project('systematic', systreal)
                                   .project('AK8Puppijet0_pt', ptbin)
                                   .project('AK8Puppijet0_deepdoubleb', slice(None,0.89), overflow='under')
-                                )
+                                 )
                 pass_template = (h.project('process', source_proc)
                                   .project('AK8Puppijet0_isHadronicV', *mproj)
                                   .project('systematic', systreal)
                                   .project('AK8Puppijet0_pt', ptbin)
                                   .project('AK8Puppijet0_deepdoubleb', slice(0.89,None))
-                                )
+                                 )
             content = fail_template.sum('AK8Puppijet0_msd').values()
             if content == {} or content[()] == 0.:
                 print("Missing", proc, ptbin, syst)

@@ -72,7 +72,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                  hist.Bin("vmuoLoose0_eta", r"Leading muon $\eta$", 50, -3, 3),
                                                  )
         hists['jetpt_signalregion'] = hist.Hist("Events",
-                                                dataset_axis, 
+                                                dataset_axis,
                                                 gencat_axis,
                                                 hist.Bin("AK8Puppijet0_pt", "Jet $p_T$", 50, 300, 1300),
                                                 )
@@ -186,7 +186,9 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                     hist.Cat("systematic", "Systematic"),
                                                     jetpt_axis,
                                                     jetmass_axis,
-                                                    doublec_coarse_axis
+                                                    doublec_coarse_axis,
+                                                    hist.Bin("ak8jet_p_bb", r"Jet p_{bb}", 50, 0, 1),
+                                                    hist.Bin("ak8jet_p_cc", r"Jet p_{cc}", 50, 0, 1),
                                                     )
         hists['templates_hCCmuoncontrol'] = hist.Hist("Events",
                                                    dataset_axis,
@@ -194,11 +196,12 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                    hist.Cat("systematic", "Systematic"),
                                                    jetpt_axis,
                                                    jetmass_axis,
-                                                   doublec_coarse_axis
+                                                   doublec_coarse_axis,
+        #                                           )
+                                                   #hist.Bin("ak8jet_n2ddt", r"Jet N_{2,ddt}^{\beta=1}", 8, -.2, .2),
+                                                   hist.Bin("ak8jet_p_bb", r"Jet p_{bb}", 50, 0, 1),
+                                                   hist.Bin("ak8jet_p_cc", r"Jet p_{cc}", 50, 0, 1),
                                                    )
-        #                                           hist.Bin("ak8jet_n2ddt", r"Jet N_{2,ddt}^{\beta=1}", 8, -.2, .2),
-        #                                           hist.Bin("ak8jet_p_bb", r"Jet p_{bb}", 50, 0, 1),
-        #                                           hist.Bin("ak8jet_p_cc", r"Jet p_{cc}", 50, 0, 1),
         self._accumulator = hists
 
     @property
@@ -501,7 +504,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
     def postprocess(self, accumulator):
         # set everything to 1/fb scale
         lumi = 1000  # [1/pb]
-        
+
         if 'sumw_external' in self._corrections:
             normlist = self._corrections['sumw_external']
             for key in accumulator['sumw'].keys():
@@ -514,7 +517,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             else:
                 warnings.warn("Missing cross section for dataset %s.  Normalizing to 1 pb" % dataset, RuntimeWarning)
                 scale[dataset] = lumi / dataset_sumw
-            
+
         for h in accumulator.values():
             if isinstance(h, hist.Hist):
                 h.scale(scale, axis="dataset")
@@ -542,7 +545,7 @@ if __name__ == '__main__':
 
     from columns import gghbbcolumns, gghbbcolumns_mc
     allcolumns = gghbbcolumns + gghbbcolumns_mc
-        
+
     processor_instance = BoostedHbbProcessor(corrections=corrections,
                                              columns=allcolumns,
                                              debug=args.debug,
