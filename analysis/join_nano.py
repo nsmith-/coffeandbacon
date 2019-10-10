@@ -3,9 +3,13 @@ import numpy as np
 import json
 import subprocess
 import awkward
-import lz4.frame as lz4f
+import lz4.block
 import hashlib
 import os
+
+COMPRESSION = {
+    'pair': (lz4.block.compress, ('lz4.block', 'decompress')),
+}
 
 def make_samples():
     samples = {
@@ -33,6 +37,9 @@ def make_samples():
         "GluGluHToBB_M125_13TeV_powheg_pythia8": {
             'dataset': "/GluGluHToBB_M125_13TeV_powheg_pythia8/RunIIAutumn18NanoAODv5-Nano1June2019_102X_upgrade2018_realistic_v19-v1/NANOAODSIM",
         },
+        "ZJetsToQQ_HT600to800_qc19_4j_TuneCP5_13TeV": {
+            'dataset': "/ZJetsToQQ_HT600to800_qc19_4j_TuneCP5_13TeV-madgraphMLM-pythia8/RunIIAutumn18NanoAODv5-Nano1June2019_102X_upgrade2018_realistic_v19-v1/NANOAODSIM",
+        },
     }
 
     for sample, info in samples.items():
@@ -54,7 +61,24 @@ def make_samples():
 with open('metadata/join_nano.json') as fin:
     samples = json.load(fin)
 
-newcolumns = {'HTXS_Higgs_pt', 'HTXS_stage1_1_cat_pTjet30GeV', 'HTXS_stage1_1_fine_cat_pTjet30GeV', 'HTXS_njets30', 'FatJet_btagDDBvL', 'event'}
+newcolumns = [
+    'HTXS_Higgs_pt',
+    'HTXS_stage1_1_cat_pTjet30GeV',
+    'HTXS_stage1_1_fine_cat_pTjet30GeV',
+    'HTXS_njets30',
+    'FatJet_pt',
+    'FatJet_eta',
+    'FatJet_phi',
+    'FatJet_mass',
+    'FatJet_btagDDBvL',
+    'FatJet_btagDDCvL',
+    'FatJet_btagDDCvB',
+    'FatJet_n2b1',
+    'FatJet_area',
+    'FatJet_jetId',
+    'FatJet_msoftdrop',
+    'event'
+]
 
 def makeindex(lumi, event):
     lumibits = 18
@@ -73,6 +97,7 @@ for sample, info in samples.items():
         hashed = hashlib.sha256(file.encode('ascii')).hexdigest()
         ofile = 'adata/' + hashed + '.awkd'
         if os.path.exists(ofile):
+            print("already produced", ofile)
             continue
         fbits = uproot.open(file)
         tbits = fbits['otree']
@@ -111,6 +136,6 @@ for sample, info in samples.items():
         print("allfound: ", allfound.sum() == len(allfound))
         print("event matches:", (cols['event'] == event).all())
         print("saving:", ofile)
-        awkward.save(ofile, cols, mode='w')
+        awkward.save(ofile, cols, mode='w', compression=COMPRESSION)
 
 
