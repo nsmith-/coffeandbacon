@@ -37,6 +37,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         doublecvb_wps = [0.93, 0.91, 0.6, 0.2, 0.17]
         doublecvb_coarse_axis = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", doublecvb_wps[::-1])
 
+        pregion_coarse_axis = hist.Bin("pxx", "P(xx) region", [0, 1, 2, 3, 4, 5, 6])
+
         hists = processor.dict_accumulator()
         hist.Hist.DEFAULT_DTYPE = 'f'  # save some space by keeping float bin counts instead of double
         hists['sumw'] = processor.defaultdict_accumulator(int)
@@ -170,6 +172,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                     hist.Cat("systematic", "Systematic"),
                                                     jetpt_axis,
                                                     jetmass_axis,
+                                                    pregion_coarse_axis,
                                                     doubleb_coarse_axis
                                                     )
         hists['templates_muoncontrol'] = hist.Hist("Events",
@@ -178,30 +181,33 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                    hist.Cat("systematic", "Systematic"),
                                                    jetpt_axis,
                                                    jetmass_axis,
+                                                   pregion_coarse_axis,
                                                    doubleb_coarse_axis
                                                    )
         hists['templates_hCCsignalregion'] = hist.Hist("Events",
-                                                    dataset_axis,
-                                                    gencat_axis,
-                                                    hist.Cat("systematic", "Systematic"),
-                                                    jetpt_axis,
-                                                    jetmass_axis,
-                                                    doublec_coarse_axis,
-                                                    hist.Bin("ak8jet_p_bb", r"Jet p_{bb}", 50, 0, 1),
-                                                    hist.Bin("ak8jet_p_cc", r"Jet p_{cc}", 50, 0, 1),
-                                                    )
+                                                       dataset_axis,
+                                                       gencat_axis,
+                                                       hist.Cat("systematic", "Systematic"),
+                                                       jetpt_axis,
+                                                       jetmass_axis,
+                                                       doublec_coarse_axis,
+                                                       pregion_coarse_axis,
+                                                       #hist.Bin("ak8jet_p_bb", r"Jet p_{bb}", 30, 0, 1),
+                                                       #hist.Bin("ak8jet_p_cc", r"Jet p_{cc}", 30, 0, 1),
+                                                       )
         hists['templates_hCCmuoncontrol'] = hist.Hist("Events",
-                                                   dataset_axis,
-                                                   gencat_axis,
-                                                   hist.Cat("systematic", "Systematic"),
-                                                   jetpt_axis,
-                                                   jetmass_axis,
-                                                   doublec_coarse_axis,
-        #                                           )
-                                                   #hist.Bin("ak8jet_n2ddt", r"Jet N_{2,ddt}^{\beta=1}", 8, -.2, .2),
-                                                   hist.Bin("ak8jet_p_bb", r"Jet p_{bb}", 50, 0, 1),
-                                                   hist.Bin("ak8jet_p_cc", r"Jet p_{cc}", 50, 0, 1),
-                                                   )
+                                                      dataset_axis,
+                                                      gencat_axis,
+                                                      hist.Cat("systematic", "Systematic"),
+                                                      jetpt_axis,
+                                                      jetmass_axis,
+                                                      doublec_coarse_axis,
+                                                      pregion_coarse_axis,
+                                                      # hist.Bin("ak8jet_n2ddt", r"Jet N_{2,ddt}^{\beta=1}", 8, -.2, .2),
+                                                      # hist.Bin("ak8jet_p_bb", r"Jet p_{bb}", 30, 0, 1),
+                                                      # hist.Bin("ak8jet_p_cc", r"Jet p_{cc}", 30, 0, 1),
+                                                      )
+
         self._accumulator = hists
 
     @property
@@ -246,6 +252,9 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         else:
             df['ak8jet_p_bb'] = (df['AK8Puppijet0_deepdoubleb'] + 1 - df['AK8Puppijet0_deepdoublecvb']) / 3.
             df['ak8jet_p_cc'] = (df['AK8Puppijet0_deepdoublec'] + df['AK8Puppijet0_deepdoublecvb']) / 3.
+            df['ak8jet_p_qq'] = (2 - df['AK8Puppijet0_deepdoubleb'] - df['AK8Puppijet0_deepdoublec']) / 3
+            _pxx = np.array([df['ak8jet_p_qq'], df['ak8jet_p_cc'], df['ak8jet_p_bb']])
+            df['pxx'] = _pxx.argmax(axis=0) + 1
 
     def subleading_n3(self, df):
         e4_v2_jet1 = self.clean(df, 'AK8Puppijet1_e4_v2_sdb1', 1.)
