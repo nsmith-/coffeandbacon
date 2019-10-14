@@ -9,10 +9,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--cc", default=False, action='store_true', help="Make templates for Hcc")
 args = parser.parse_args()
 
-if args.cc: 
+if args.cc:
     fin = ROOT.TFile.Open("templatesCC.root")
     fout = ROOT.TFile.Open("hist_1DZcc_pt_scalesmear.root", "recreate")
-else: 
+else:
     fin = ROOT.TFile.Open("templates.root")
     fout = ROOT.TFile.Open("hist_1DZbb_pt_scalesmear.root", "recreate")
 

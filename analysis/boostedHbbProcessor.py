@@ -41,7 +41,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
 
         hists = processor.dict_accumulator()
         hist.Hist.DEFAULT_DTYPE = 'f'  # save some space by keeping float bin counts instead of double
-        hists['sumw'] = processor.defaultdict_accumulator(int)
+        hists['sumw'] = processor.defaultdict_accumulator(float)
         hists['genVpt_noselection'] = hist.Hist("Events / 20 GeV",
                                                 dataset_axis,
                                                 gencat_axis,
