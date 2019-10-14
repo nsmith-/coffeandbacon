@@ -3,9 +3,9 @@ A repository for using columnar analysis on bacon(bits) files.
 
 ## Setup
 To use, first an environment must be setup.  If running on your laptop, running
-`pip install fnal-column-analysis-tools jupyter` should get most of the way there.
+`pip install coffea jupyter` should get most of the way there.
 It might be preferable to install some of these things via `conda`.  Note, this is
-a python 3 package, python 2 is end of life so get used to `print()`.
+a python 3 package; python 2 is end of life so get used to `print()`.
 To install at the LPC, there is a script:
 ```bash
 source setup_lcg.sh
@@ -29,9 +29,10 @@ Afterwards activating the environemnt should be enough
 The following recipe runs all the relevant code to produce templates similar to those of `sampleContainer`:
 ```bash
 cd analysis
+# optional, because output saved in repository: ./make_pileup.py
 ./compile_corrections.py
 ./boostedHbbProcessor.py
-./run_baconbits.py --executor futures
+./run_baconbits.py --executor futures --sample Hbb_2017
 python baconbits-templates.py
 python convert2d.py
 ls hist_1DZbb*
@@ -49,5 +50,5 @@ To use juptyer at LPC, start a notebook server with, e.g. `jupyter notebook --no
 substituing your favorite port: pick a random integer in (8000,65535).
 Often, you'll need an ssh tunnel, which can be accomplished via, e.g. `ssh -L $PORT:localhost:$PORT server.address`
 
-Check out some of the notebooks in the analysis directory.  Most will need `hists.pkl.gz` as created by `run_baconbits.py`,
+Check out some of the notebooks in the analysis directory.  Most will need the `hists.coffea` file as created by `run_baconbits.py`,
 but the top background notebook can be run after downloading the test baconbits.

@@ -4,3 +4,4 @@ notebooks/data
 fnal-column-analysis-tools
 *_C.*
 *.pcm
+*.pdf
