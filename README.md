@@ -37,13 +37,20 @@ python baconbits-templates.py
 python convert2d.py
 ls hist_1DZbb*
 ```
-#### Running Hcc
+#### Running Hcc at DESY
 ```bash
 cd analysis
-./make_pileup.py --samplejson samplecc.json --sample Hbb_create_2017
+./make_pileup.py --samplejson samplesdesy.json --sample Hbb_create_2017
 ./compile_corrections.py
+###
+# If runnning futures or iterative
 ./boostedHbbProcessor.py
-./run_baconbits.py --executor futures --samplejson samplecc.json --sample Hbb_create_2017 -j 10<or other number of cores>
+./run_baconbits.py --executor futures --samplejson samplesdesy.json --sample Hbb_create_2017 -j 10
+
+# If runnning with parsl
+./boostedHbbProcessor.py --externalSumW correction_files/sumw_mc.coffea
+./run_baconbits.py --executor parsl --samplejson samplesdesy.json --sample Hbb_create_2017
+###
 python baconbits-templates.py --cc --split
 python convert2d.py --cc --split
 ls hist_1DZcc*
