@@ -20,7 +20,6 @@ parser.add_argument("--split", default=False, action='store_true', help="Split W
 parser.add_argument("--three-regions", dest='threeregions', default=False, action='store_true', help="Split by max prob pbb/pcc/pqq")
 args = parser.parse_args()
 
-#hists_unmapped = load('hists.coffea')
 hists_unmapped = load('hists_Hbb_create_2017.coffea')
 
 
@@ -30,6 +29,7 @@ for key, val in hists_unmapped.items():
         hists[key] = processmap.apply(val)
 
 if args.cc: template_file = "templatesCC.root"
+elif args.threeregions: template_file = "templates3.root"
 else: template_file = "templates.root"
 if os.path.exists(template_file):
     os.remove(template_file)
@@ -37,6 +37,7 @@ fout = uproot.create(template_file)
 
 nodata = re.compile("(?!data_obs)")
 if args.cc: h = hists['templates_hCCsignalregion'][nodata]
+elif args.threeregions: h = hists['templates_signalregion'][nodata]
 else: h = hists['templates_signalregion'][nodata]
 lumi = 41.1
 h.scale({p: lumi for p in h[nodata].identifiers('process')}, axis="process")
@@ -63,46 +64,79 @@ for proc in proc_names:
                 mproj = (slice(None), 'all')
             systreal = syst
             if args.threeregions:
-                pass
+                pqq_template = (h.integrate('process', source_proc)
+                                .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                .integrate('systematic', systreal)
+                                .integrate('AK8Puppijet0_pt', ptbin)
+                                .integrate('pxx', 1)
+                                .integrate('AK8Puppijet0_deepdoubleb', overflow='all')
+                                )
+                pcc_template = (h.integrate('process', source_proc)
+                                .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                .integrate('systematic', systreal)
+                                .integrate('AK8Puppijet0_pt', ptbin)
+                                .integrate('pxx', 2)
+                                .integrate('AK8Puppijet0_deepdoubleb', overflow='all')
+                                )
+                pbb_template = (h.integrate('process', source_proc)
+                                .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                .integrate('systematic', systreal)
+                                .integrate('AK8Puppijet0_pt', ptbin)
+                                .integrate('pxx', 3)
+                                .integrate('AK8Puppijet0_deepdoubleb', overflow='all')
+                                )
             elif args.cc:
-                fail_template = (h.project('process', source_proc)
-                                  .project('AK8Puppijet0_isHadronicV', *mproj)
-                                  .project('systematic', systreal)
-                                  .project('AK8Puppijet0_pt', ptbin)
+                fail_template = (h.integrate('process', source_proc)
+                                  .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                  .integrate('systematic', systreal)
+                                  .integrate('AK8Puppijet0_pt', ptbin)
                                   .integrate('pxx')
-                                  .project('AK8Puppijet0_deepdoublec', slice(None,0.83), overflow='under')
+                                  .integrate('AK8Puppijet0_deepdoublec', slice(None,0.83), overflow='under')
                                  )
-                pass_template = (h.project('process', source_proc)
-                                  .project('AK8Puppijet0_isHadronicV', *mproj)
-                                  .project('systematic', systreal)
-                                  .project('AK8Puppijet0_pt', ptbin)
+                pass_template = (h.integrate('process', source_proc)
+                                  .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                  .integrate('systematic', systreal)
+                                  .integrate('AK8Puppijet0_pt', ptbin)
                                   .integrate('pxx')
-                                  .project('AK8Puppijet0_deepdoublec', slice(0.83,None))
+                                  .integrate('AK8Puppijet0_deepdoublec', slice(0.83,None))
                                  )
+                
             else:
-                fail_template = (h.project('process', source_proc)
-                                  .project('AK8Puppijet0_isHadronicV', *mproj)
-                                  .project('systematic', systreal)
-                                  .project('AK8Puppijet0_pt', ptbin)
+                fail_template = (h.integrate('process', source_proc)
+                                  .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                  .integrate('systematic', systreal)
+                                  .integrate('AK8Puppijet0_pt', ptbin)
                                   .integrate('pxx')
-                                  .project('AK8Puppijet0_deepdoubleb', slice(None,0.89), overflow='under')
+                                  .integrate('AK8Puppijet0_deepdoubleb', slice(None,0.89), overflow='under')
                                  )
-                pass_template = (h.project('process', source_proc)
-                                  .project('AK8Puppijet0_isHadronicV', *mproj)
-                                  .project('systematic', systreal)
-                                  .project('AK8Puppijet0_pt', ptbin)
+                pass_template = (h.integrate('process', source_proc)
+                                  .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                  .integrate('systematic', systreal)
+                                  .integrate('AK8Puppijet0_pt', ptbin)
                                   .integrate('pxx')
-                                  .project('AK8Puppijet0_deepdoubleb', slice(0.89,None))
+                                  .integrate('AK8Puppijet0_deepdoubleb', slice(0.89,None))
                                  )
-            content = fail_template.sum('AK8Puppijet0_msd').values()
+            try:
+                content = fail_template.sum('AK8Puppijet0_msd').values()
+            except:
+                content = pqq_template.sum('AK8Puppijet0_msd').values()
             if content == {} or content[()] == 0.:
                 print("Missing", proc, ptbin, syst)
                 continue
+            
             sname = "_%s" % syst if syst.name != '' else ''
-            name = "%s_pass%s_bin%d" % (proc, sname, i)
-            fout[name] = hist.export1d(pass_template)
-            name = "%s_fail%s_bin%d" % (proc, sname, i)
-            fout[name] = hist.export1d(fail_template)
+            if args.threeregions:
+                name = "%s_pqq%s_bin%d" % (proc, sname, i)
+                fout[name] = hist.export1d(pqq_template)
+                name = "%s_pcc%s_bin%d" % (proc, sname, i)
+                fout[name] = hist.export1d(pcc_template)
+                name = "%s_pbb%s_bin%d" % (proc, sname, i)
+                fout[name] = hist.export1d(pbb_template)
+            else:
+                name = "%s_pass%s_bin%d" % (proc, sname, i)
+                fout[name] = hist.export1d(pass_template)
+                name = "%s_fail%s_bin%d" % (proc, sname, i)
+                fout[name] = hist.export1d(fail_template)
 
 fout.close()
 
@@ -133,34 +167,34 @@ for proc in h.identifiers('process'):
         mproj = (slice(None), 'all')
         systreal = syst
         if args.cc:
-            fail_template = (h.project('process', proc)
-                                .project('AK8Puppijet0_isHadronicV', *mproj)
-                                .project('systematic', systreal)
-                                .project('AK8Puppijet0_pt', overflow='all')
+            fail_template = (h.integrate('process', proc)
+                                .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                .integrate('systematic', systreal)
+                                .integrate('AK8Puppijet0_pt', overflow='all')
                                 .integrate('pxx')
-                                .project('AK8Puppijet0_deepdoublec', slice(None,0.83), overflow='under')
+                                .integrate('AK8Puppijet0_deepdoublec', slice(None,0.83), overflow='under')
                             )
-            pass_template = (h.project('process', proc)
-                                .project('AK8Puppijet0_isHadronicV', *mproj)
-                                .project('systematic', systreal)
-                                .project('AK8Puppijet0_pt', overflow='all')
+            pass_template = (h.integrate('process', proc)
+                                .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                .integrate('systematic', systreal)
+                                .integrate('AK8Puppijet0_pt', overflow='all')
                                 .integrate('pxx')
-                                .project('AK8Puppijet0_deepdoublec', slice(0.83,None))
+                                .integrate('AK8Puppijet0_deepdoublec', slice(0.83,None))
                             )
         else:
-            fail_template = (h.project('process', proc)
-                                .project('AK8Puppijet0_isHadronicV', *mproj)
-                                .project('systematic', systreal)
-                                .project('AK8Puppijet0_pt', overflow='all')
+            fail_template = (h.integrate('process', proc)
+                                .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                .integrate('systematic', systreal)
+                                .integrate('AK8Puppijet0_pt', overflow='all')
                                 .integrate('pxx')
-                                .project('AK8Puppijet0_deepdoubleb', slice(None,0.89), overflow='under')
+                                .integrate('AK8Puppijet0_deepdoubleb', slice(None,0.89), overflow='under')
                             )
-            pass_template = (h.project('process', proc)
-                                .project('AK8Puppijet0_isHadronicV', *mproj)
-                                .project('systematic', systreal)
-                                .project('AK8Puppijet0_pt', overflow='all')
+            pass_template = (h.integrate('process', proc)
+                                .integrate('AK8Puppijet0_isHadronicV', *mproj)
+                                .integrate('systematic', systreal)
+                                .integrate('AK8Puppijet0_pt', overflow='all')
                                 .integrate('pxx')
-                                .project('AK8Puppijet0_deepdoubleb', slice(0.89,None))
+                                .integrate('AK8Puppijet0_deepdoubleb', slice(0.89,None))
                             )
         content = fail_template.sum('AK8Puppijet0_msd').values()
         if content == {} or content[()] == 0.:
