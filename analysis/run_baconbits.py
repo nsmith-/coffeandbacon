@@ -70,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
     parser.add_argument('--stride', type=int, default=500000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
-    parser.add_argument('--executor', choices=['iterative', 'futures'], default='iterative', help='The type of executor to use (default: %(default)s)')
+    parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl'], default='iterative', help='The type of executor to use (default: %(default)s)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     parser.add_argument('--profile-out', dest='profilehtml', default=None, help='Filename for the pyinstrument HTML profile output')
     args = parser.parse_args()
@@ -93,6 +93,8 @@ if __name__ == '__main__':
             prefix = 'root://cmseos.fnal.gov/' if files.startswith('/eos/uscms/') else ''
             files = [prefix + f for f in glob.glob(files)]
         for file in files[:args.limit]:
+            if file.startswith('root://cmseos.fnal.gov/'): file.replace('root://cmseos.fnal.gov/', 'root://xrootd-cms.infn.it//')
+            print(file)
             filelist.append((dataset, file))
 
     if args.validate:
@@ -131,18 +133,36 @@ if __name__ == '__main__':
             profiler.stop()
             with open(args.profilehtml, "w") as fout:
                 fout.write(profiler.output_html())
+        final_accumulator = combined_accumulator['job']
+        stats = combined_accumulator['stats']
+        processor_instance.postprocess(final_accumulator)
+
     elif args.executor == 'futures':
         processor.futures_executor(filelist, work_function, combined_accumulator, workers=args.workers)
 
-    final_accumulator = combined_accumulator['job']
-    stats = combined_accumulator['stats']
-    processor_instance.postprocess(final_accumulator)
+        final_accumulator = combined_accumulator['job']
+        stats = combined_accumulator['stats']
+        processor_instance.postprocess(final_accumulator)
 
-    print("Columns accessed:", set(stats['columns_accessed']))
-    print("%.2f us*cpu/event work time" % (1e6*stats['sumworktime'].value/stats['nentries'].value, ))
-    print("Processed %.1fM events" % (stats['nentries'].value/1e6, ))
-    print("Read %.1fM bytes" % (stats['bytesread'].value/1e6, ))
+    elif args.executor == 'parsl':
+        from cfg_parsl import *
+        from coffea.processor import run_parsl_job
+        from coffea.processor.parsl.parsl_executor import parsl_executor
+        final_accumulator = run_parsl_job(sample, ['otree'],
+                                          processor_instance,
+                                          parsl_executor,
+                                          #executor_args={'config':None, 'flatten':False}, data_flow=dfk, chunksize=chunksize)
+                                          executor_args={'config':None,
+                                          'flatten':False, 'desc': f"Processing {dataset}"}, chunksize=chunksize)
 
+
+
+    #print("Columns accessed:", set(stats['columns_accessed']))
+    #print("%.2f us*cpu/event work time" % (1e6*stats['sumworktime'].value/stats['nentries'].value, ))
+    #print("Processed %.1fM events" % (stats['nentries'].value/1e6, ))
+    #print("Read %.1fM bytes" % (stats['bytesread'].value/1e6, ))
+
+    print(final_accumulator)
     nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in final_accumulator.values() if isinstance(h, hist.Hist))
     nfilled = sum(sum(np.sum(arr > 0) for arr in h._sumw.values()) for h in final_accumulator.values() if isinstance(h, hist.Hist))
     print("Filled %.1fM bins" % (nbins/1e6, ))
@@ -152,4 +172,4 @@ if __name__ == '__main__':
 
     dt = time.time() - tstart
     nworkers = 1 if args.executor == 'iterative' else args.workers
-    print("%.2f us*cpu/event overall" % (1e6*dt*nworkers/stats['nentries'].value, ))
+    #print("%.2f us*cpu/event overall" % (1e6*dt*nworkers/stats['nentries'].value, ))
