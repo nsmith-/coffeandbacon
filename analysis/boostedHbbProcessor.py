@@ -31,7 +31,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         doublec_axis = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", 20, 0., 1.)
         doublecvb_axis = hist.Bin("AK8Puppijet0_deepdoublecvb", "Double-cvb", 20, 0., 1.)
         doubleb_wps = [1., 0.9, 0.89, 0.85, 0.7]
-        doubleb_coarse_axis = hist.Bin("AK8Puppijet0_deepdoubleb", "Double-b", doubleb_wps[::-1])
+        doubleb_coarse_axis = hist.Bin("passddb", "Double-b", [0., 1., 2.])
         doublec_wps = [0.87, 0.84, 0.83, 0.79, 0.69]
         doublec_coarse_axis = hist.Bin("AK8Puppijet0_deepdoublec", "Double-c", doublec_wps[::-1])
         doublecvb_wps = [0.93, 0.91, 0.6, 0.2, 0.17]
@@ -164,10 +164,20 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                                                              doubleb_coarse_axis,
                                                              hist.Bin("muon_dphi", r"$\Delta\phi(\mu, j)$", 40, 0, np.pi)
                                                              )
+        hists['templates_noselection'] = hist.Hist("Events",
+                                                   dataset_axis,
+                                                   gencat_axis,
+                                                   hist.Cat("systematic", "Systematic"),
+                                                   hist.Bin("genVPt", r"Generated Higgs $p_{T}$ [GeV]", [200, 300, 450, 500, 550, 600, 675, 800, 1200]),
+                                                   jetpt_axis,
+                                                   jetmass_axis,
+                                                   doubleb_coarse_axis
+                                                   )
         hists['templates_signalregion'] = hist.Hist("Events",
                                                     dataset_axis,
                                                     gencat_axis,
                                                     hist.Cat("systematic", "Systematic"),
+                                                    hist.Bin("genVPt", r"Generated Higgs $p_{T}$ [GeV]", [200, 300, 450, 500, 550, 600, 675, 800, 1200]),
                                                     jetpt_axis,
                                                     jetmass_axis,
                                                     doubleb_coarse_axis
@@ -321,6 +331,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
         selection.add('jetMass', df['AK8Puppijet0_msd'] > 40.)
         selection.add('deepcvb', df['AK8Puppijet0_deepdoublecvb'] > 0.2)
+        df['passddb'] = 1. * (df['AK8Puppijet0_deepdoubleb'] > 0.89)
 
         selection.add('jetKinematics', df['AK8Puppijet0_pt'] > 450.)
         selection.add('jetKinematicsMuonCR', df['AK8Puppijet0_pt'] > 400.)
@@ -399,6 +410,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                         regionMask(self._corrections[f'{self._year}_trigweight_msd_pt_trigweightUp'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
                         regionMask(self._corrections[f'{self._year}_trigweight_msd_pt_trigweightDown'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt'])),
                         )
+            triginv = regionMask(1. / self._corrections[f'{self._year}_trigweight_msd_pt'](df['AK8Puppijet0_msd_raw'], df['AK8Puppijet0_pt']))
             vmatch = (np.abs(deltaphi(df['AK8Puppijet0_phi'], df['genVPhi'])) < 0.8) & (np.abs(df['AK8Puppijet0_pt']-df['genVPt'])/df['genVPt'] < 0.5) & (np.abs(df['AK8Puppijet0_msd']-df['genVMass'])/df['genVMass'] < 0.3)
             weights.add('matched', np.ones(df.size, dtype='f'), vmatch.astype('f'), 1.-vmatch)
 

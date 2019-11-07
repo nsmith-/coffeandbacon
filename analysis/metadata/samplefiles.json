@@ -5195,5 +5195,8 @@
             "root://cmseos.fnal.gov//eos/uscms/store/user/lpcbacon/dazsle/zprimebits-v15.04-vbf/skim/ttHTobb_M125_TuneCP5_13TeV_powheg_pythia8_8.root",
             "root://cmseos.fnal.gov//eos/uscms/store/user/lpcbacon/dazsle/zprimebits-v15.04-vbf/skim/ttHTobb_M125_TuneCP5_13TeV_powheg_pythia8_9.root"
         ]
+    },
+    "minlo2018": {
+          "GluGluHToBB_M_125_13TeV_powheg_MINLO_NNLOPS_pythia8": "/eos/uscms/store/user/lpcbacon/dazsle/zprimebits-v15.05/GluGluHToBB_M_125_13TeV_powheg_MINLO_NNLOPS_pythia8/*.root"
     }
 }
