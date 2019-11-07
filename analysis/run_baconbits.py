@@ -3,6 +3,8 @@ import json
 import time
 import argparse
 import glob
+from collections import defaultdict
+
 from tqdm import tqdm
 
 import uproot
@@ -62,6 +64,10 @@ def validate(dataset, file):
 
 
 if __name__ == '__main__':
+    exmap = {
+        'coffea_futures': processor.futures_executor,
+        'coffea_iterative': processor.iterative_executor,
+    }
     parser = argparse.ArgumentParser(description='Run analysis on baconbits files using processor coffea files')
     parser.add_argument('--processor', default='boostedHbbProcessor.coffea', help='The name of the compiled processor file (default: %(default)s)')
     parser.add_argument('--output', default=r'hists_{sample}.coffea', help='Output histogram filename (default: %(default)s)')
@@ -70,7 +76,7 @@ if __name__ == '__main__':
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
     parser.add_argument('--stride', type=int, default=500000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
-    parser.add_argument('--executor', choices=['iterative', 'futures'], default='iterative', help='The type of executor to use (default: %(default)s)')
+    parser.add_argument('--executor', choices=['iterative', 'futures'] + list(exmap.keys()), default='iterative', help='The type of executor to use (default: %(default)s)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     parser.add_argument('--profile-out', dest='profilehtml', default=None, help='Filename for the pyinstrument HTML profile output')
     args = parser.parse_args()
@@ -105,51 +111,58 @@ if __name__ == '__main__':
 
     processor_instance = load(args.processor)
 
-    combined_accumulator = processor.dict_accumulator({
-        'stats': processor.dict_accumulator({
-            'nentries': processor.value_accumulator(int),
-            'bytesread': processor.value_accumulator(int),
-            'sumworktime': processor.value_accumulator(float),
-            'columns_accessed': processor.set_accumulator(),
-        }),
-        'job': processor_instance.accumulator.identity(),
-    })
+    if args.executor.startswith('coffea_'):
+        fileset = defaultdict(list)
+        for ds, fn in filelist:
+            fileset[ds].append(fn)
+        final_accumulator = processor.run_uproot_job(fileset, 'otree', processor_instance, exmap[args.executor], {'workers': args.workers})
+        save(final_accumulator, args.output)
+    else:
+        combined_accumulator = processor.dict_accumulator({
+            'stats': processor.dict_accumulator({
+                'nentries': processor.value_accumulator(int),
+                'bytesread': processor.value_accumulator(int),
+                'sumworktime': processor.value_accumulator(float),
+                'columns_accessed': processor.set_accumulator(),
+            }),
+            'job': processor_instance.accumulator.identity(),
+        })
 
-    def work_function(item):
-        dataset, file = item
-        out, stats = process_file(dataset, file, processor_instance, combined_accumulator['stats'], preload_items, args.stride)
-        return processor.dict_accumulator({'stats': stats, 'job': out})
+        def work_function(item):
+            dataset, file = item
+            out, stats = process_file(dataset, file, processor_instance, combined_accumulator['stats'], preload_items, args.stride)
+            return processor.dict_accumulator({'stats': stats, 'job': out})
 
-    tstart = time.time()
-    if args.executor == 'iterative':
-        if args.profilehtml is not None:
-            from pyinstrument import Profiler
-            profiler = Profiler()
-            profiler.start()
-        processor.iterative_executor(filelist, work_function, combined_accumulator)
-        if args.profilehtml is not None:
-            profiler.stop()
-            with open(args.profilehtml, "w") as fout:
-                fout.write(profiler.output_html())
-    elif args.executor == 'futures':
-        processor.futures_executor(filelist, work_function, combined_accumulator, workers=args.workers)
+        tstart = time.time()
+        if args.executor == 'iterative':
+            if args.profilehtml is not None:
+                from pyinstrument import Profiler
+                profiler = Profiler()
+                profiler.start()
+            processor.iterative_executor(filelist, work_function, combined_accumulator)
+            if args.profilehtml is not None:
+                profiler.stop()
+                with open(args.profilehtml, "w") as fout:
+                    fout.write(profiler.output_html())
+        elif args.executor == 'futures':
+            processor.futures_executor(filelist, work_function, combined_accumulator, workers=args.workers)
 
-    final_accumulator = combined_accumulator['job']
-    stats = combined_accumulator['stats']
-    processor_instance.postprocess(final_accumulator)
+        final_accumulator = combined_accumulator['job']
+        stats = combined_accumulator['stats']
+        processor_instance.postprocess(final_accumulator)
 
-    print("Columns accessed:", set(stats['columns_accessed']))
-    print("%.2f us*cpu/event work time" % (1e6*stats['sumworktime'].value/stats['nentries'].value, ))
-    print("Processed %.1fM events" % (stats['nentries'].value/1e6, ))
-    print("Read %.1fM bytes" % (stats['bytesread'].value/1e6, ))
+        print("Columns accessed:", set(stats['columns_accessed']))
+        print("%.2f us*cpu/event work time" % (1e6*stats['sumworktime'].value/stats['nentries'].value, ))
+        print("Processed %.1fM events" % (stats['nentries'].value/1e6, ))
+        print("Read %.1fM bytes" % (stats['bytesread'].value/1e6, ))
 
-    nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in final_accumulator.values() if isinstance(h, hist.Hist))
-    nfilled = sum(sum(np.sum(arr > 0) for arr in h._sumw.values()) for h in final_accumulator.values() if isinstance(h, hist.Hist))
-    print("Filled %.1fM bins" % (nbins/1e6, ))
-    print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
+        nbins = sum(sum(arr.size for arr in h._sumw.values()) for h in final_accumulator.values() if isinstance(h, hist.Hist))
+        nfilled = sum(sum(np.sum(arr > 0) for arr in h._sumw.values()) for h in final_accumulator.values() if isinstance(h, hist.Hist))
+        print("Filled %.1fM bins" % (nbins/1e6, ))
+        print("Nonzero bins: %.1f%%" % (100*nfilled/nbins, ))
 
-    save(final_accumulator, args.output)
+        save(final_accumulator, args.output)
 
-    dt = time.time() - tstart
-    nworkers = 1 if args.executor == 'iterative' else args.workers
-    print("%.2f us*cpu/event overall" % (1e6*dt*nworkers/stats['nentries'].value, ))
+        dt = time.time() - tstart
+        nworkers = 1 if args.executor == 'iterative' else args.workers
+        print("%.2f us*cpu/event overall" % (1e6*dt*nworkers/stats['nentries'].value, ))
