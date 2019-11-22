@@ -115,7 +115,7 @@ if __name__ == '__main__':
         fileset = defaultdict(list)
         for ds, fn in filelist:
             fileset[ds].append(fn)
-        final_accumulator = processor.run_uproot_job(fileset, 'otree', processor_instance, exmap[args.executor], {'workers': args.workers})
+        final_accumulator = processor.run_uproot_job(fileset, 'Events', processor_instance, exmap[args.executor], {'workers': args.workers})
         save(final_accumulator, args.output)
     else:
         combined_accumulator = processor.dict_accumulator({
