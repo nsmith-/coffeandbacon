@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import pprint
+import copy
 import numpy as np
 from coffea import hist, processor
 from coffea.util import load, save
@@ -470,8 +471,10 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                 region = region[0]
                 weight = weights.weight()
                 cut = selection.all(*regions[region])
-                h.fill(systematic="", **fields, weight=weight*cut)
-                if 'systematic' in h.fields:
+                if 'systematic' not in h.fields:
+                    h.fill(**fields, weight=weight*cut)
+                else:
+                    h.fill(systematic="", **fields, weight=weight*cut)
                     if self._debug:
                         print("Filling systematics for %s" % histname)
                     systs = set(weights.variations)
@@ -479,9 +482,9 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                     for syst in systs:
                         if self._debug:
                             print("  Filling systematic %s" % syst)
-                        fields_syst = fields
+                        fields_syst = copy.copy(fields)
                         for val in shiftedQuantities:
-                            if val+'_'+syst in df:
+                            if val+'_'+syst in df and val in fields:
                                 fields_syst[val] = df[val+'_'+syst]
                                 if self._debug:
                                     print("    Replacing field %s with %s" % (val, val+'_'+syst))
