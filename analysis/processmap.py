@@ -80,7 +80,9 @@ process_map["qcd"] = [
 ]
 process_map["data_obs"] = [
     "JetHT",
+    "data_obs_jet",
     "SingleMuon",
+    "data_obs_mu",
 ]
 
 def apply(h):

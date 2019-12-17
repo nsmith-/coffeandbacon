@@ -151,9 +151,9 @@ if __name__ == '__main__':
         final_accumulator = run_parsl_job(sample, ['otree'],
                                           processor_instance,
                                           parsl_executor,
-                                          #executor_args={'config':None, 'flatten':False}, data_flow=dfk, chunksize=chunksize)
-                                          executor_args={'config':None,
-                                          'flatten':False, 'desc': f"Processing {dataset}"}, chunksize=chunksize)
+                                          # executor_args={'config':None, 'flatten':False}, data_flow=dfk, chunksize=chunksize)
+                                          executor_args={'config': None,
+                                                         'flatten': False})
 
 
 

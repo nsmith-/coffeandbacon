@@ -20,8 +20,8 @@ export X509_USER_PROXY=x509up_u31233
 export X509_CERT_DIR=/home/anovak/certs/
 '''#%(x509_proxy)
 
-twoGB = 2048
-nproc = 39
+twoGB = 1024
+nproc = 30
 
 sched_opts = '''
 #SBATCH --cpus-per-task=%d
@@ -41,8 +41,8 @@ slurm_htex = Config(
                 channel=LocalChannel(script_dir='test_parsl'),
                 launcher=SrunLauncher(),
                 #min_blocks=4,
-                init_blocks=15,
-                max_blocks=15,
+                init_blocks=20,
+                max_blocks=20,
                 nodes_per_block=1,
                 partition='all',
                 scheduler_options=sched_opts,   # Enter scheduler_options if needed

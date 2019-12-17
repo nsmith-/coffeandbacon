@@ -631,6 +631,13 @@
             "root://cmseos.fnal.gov//eos/uscms/store/user/lpcbacon/dazsle/zprimebits-v15.03/skim/ttHTobb_M125_13TeV_powheg_pythia8_1.root"
         ]
     },
+    "testdata": {
+        "data_obs_jet": [
+	    "/beegfs/desy/group/af-cms/ddc/ggH/skim1604/JetHTRun2017D_17Nov2017_v1_1_3.root",
+            "/beegfs/desy/group/af-cms/ddc/ggH/skim1604/JetHTRun2017B_17Nov2017_v1_0_0.root",
+            "/beegfs/desy/group/af-cms/ddc/ggH/skim1604/JetHTRun2017B_17Nov2017_v1_0_1.root"
+        ]
+    },
     "Hbb_create_2017": {
         "DYJetsToLL_M_50_HT_1200to2500_TuneCP5_13TeV": [
             "/beegfs/desy/group/af-cms/ddc/ggH/skim1504/DYJetsToLL_M_50_HT_1200to2500_TuneCP5_13TeV_0.root"

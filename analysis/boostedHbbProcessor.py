@@ -42,6 +42,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         hists = processor.dict_accumulator()
         hist.Hist.DEFAULT_DTYPE = 'f'  # save some space by keeping float bin counts instead of double
         hists['sumw'] = processor.defaultdict_accumulator(float)
+        hists['count'] = processor.defaultdict_accumulator(float)
+        hists['passTrig'] = processor.defaultdict_accumulator(float)
         hists['genVpt_noselection'] = hist.Hist("Events / 20 GeV",
                                                 dataset_axis,
                                                 gencat_axis,
@@ -308,9 +310,15 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # Only take jet triggers from JetHT, single muon triggers from SingleMuon dataset
             # necessary but not sufficient condition to prevent double-counting
             # (this plus mutually exclusive offline selections are sufficient)
-            selection.add('trigger', (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool') & (dataset=="JetHT"))
-            selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool') & (dataset=="SingleMuon"))
+            #selection.add('trigger', (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool') & (dataset=="JetHT"))
+            #selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool') & (dataset=="SingleMuon"))
+            selection.add('trigger', (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool')
+                          & ((dataset == "data_obs_jet") | (dataset=="JetHT")))
+            selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool')
+                          & ((dataset == "data_obs_mu") | (dataset=="SingleMuon")))
             if self._debug:
+                print("X", (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool')  )
+                print("X", (df['triggerBits'] , self._corrections[f'{self._year}_triggerMask'])  )
                 print("Trigger pass/all", selection.all('trigger').sum(), df.size)
                 print("Muon trigger pass/all", selection.all('mutrigger').sum(), df.size)
         else:
@@ -508,6 +516,9 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                     hout['sumw'][dataset] += df['skim_sumw']
             else:
                 hout['sumw'][dataset] += np.sum(df['scale1fb'])
+        else:
+            hout['count'][dataset] += np.sum(np.ones(df.size))
+            hout['passTrig'][dataset] += np.sum(selection.all('trigger') ==  True)
         return hout
 
     def postprocess(self, accumulator):

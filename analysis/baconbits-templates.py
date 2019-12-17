@@ -1,4 +1,4 @@
-# coding: utf-8
+    # coding: utf-8
 from __future__ import print_function, division
 from collections import defaultdict
 import gzip
@@ -35,10 +35,13 @@ if os.path.exists(template_file):
     os.remove(template_file)
 fout = uproot.create(template_file)
 
+
+if args.cc: h = hists['templates_hCCsignalregion']
+elif args.threeregions: h = hists['templates_signalregion']
+else: h = hists['templates_signalregion']
+
+# Scale MC
 nodata = re.compile("(?!data_obs)")
-if args.cc: h = hists['templates_hCCsignalregion'][nodata]
-elif args.threeregions: h = hists['templates_signalregion'][nodata]
-else: h = hists['templates_signalregion'][nodata]
 lumi = 41.1
 h.scale({p: lumi for p in h[nodata].identifiers('process')}, axis="process")
 
@@ -46,6 +49,7 @@ proc_names = h.identifiers('process')
 if args.split: proc_names += ['wcq', 'zbb', 'zcc']
 
 for proc in proc_names:
+    print(proc)
     for i, ptbin in enumerate(h.identifiers('AK8Puppijet0_pt')):
         for syst in h.identifiers('systematic'):
             source_proc = proc
@@ -100,7 +104,7 @@ for proc in proc_names:
                                   .integrate('pxx')
                                   .integrate('AK8Puppijet0_deepdoublec', slice(0.83,None))
                                  )
-                
+
             else:
                 fail_template = (h.integrate('process', source_proc)
                                   .integrate('AK8Puppijet0_isHadronicV', *mproj)
@@ -123,7 +127,7 @@ for proc in proc_names:
             if content == {} or content[()] == 0.:
                 print("Missing", proc, ptbin, syst)
                 continue
-            
+
             sname = "_%s" % syst if syst.name != '' else ''
             if args.threeregions:
                 name = "%s_pqq%s_bin%d" % (proc, sname, i)
