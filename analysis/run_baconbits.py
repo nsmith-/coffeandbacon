@@ -70,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--limit', type=int, default=None, metavar='N', help='Limit to the first N files of each dataset in sample JSON')
     parser.add_argument('--stride', type=int, default=500000, metavar='N', help='Number of events per process chunk')
     parser.add_argument('--validate', action='store_true', help='Do not process, just check all files are accessible')
-    parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl'], default='iterative', help='The type of executor to use (default: %(default)s)')
+    parser.add_argument('--executor', choices=['iterative', 'futures', 'parsl', 'uproot'], default='iterative', help='The type of executor to use (default: %(default)s)')
     parser.add_argument('-j', '--workers', type=int, default=12, help='Number of workers to use for multi-worker executors (e.g. futures or condor) (default: %(default)s)')
     parser.add_argument('--profile-out', dest='profilehtml', default=None, help='Filename for the pyinstrument HTML profile output')
     args = parser.parse_args()
@@ -143,16 +143,24 @@ if __name__ == '__main__':
         final_accumulator = combined_accumulator['job']
         stats = combined_accumulator['stats']
         processor_instance.postprocess(final_accumulator)
+        
+    elif args.executor == 'uproot':
+        from coffea.processor import run_uproot_job
+        from coffea import processor
+        final_accumulator = run_uproot_job(sample, 'otree',
+                                           processor_instance,
+                                           processor.futures_executor,
+                                           executor_args={'workers': args.workers})
 
     elif args.executor == 'parsl':
         from cfg_parsl import *
-        from coffea.processor import run_parsl_job
+        from coffea.processor import run_parsl_job, run_uproot_job
+        from coffea import processor
         from coffea.processor.parsl.parsl_executor import parsl_executor
-        final_accumulator = run_parsl_job(sample, ['otree'],
+        final_accumulator = run_parsl_job(sample, 'otree',
                                           processor_instance,
                                           parsl_executor,
-                                          # executor_args={'config':None, 'flatten':False}, data_flow=dfk, chunksize=chunksize)
-                                          executor_args={'config': None,
+                                          executor_args={'config': None, 
                                                          'flatten': False})
 
 

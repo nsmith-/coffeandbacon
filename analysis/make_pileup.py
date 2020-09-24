@@ -32,6 +32,7 @@ def make_pileup(args):
 
     filelist = []
     for dataset, files in sample.items():
+        print("Will run: {}".format(dataset))
         if dataset == 'JetHT' or dataset == 'SingleMuon':
             continue
         for file in files:

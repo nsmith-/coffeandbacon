@@ -252,6 +252,21 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             multiclass = self._corrections['multiclass'](df['AK8Puppijet0_deepdoubleb'], df['AK8Puppijet0_deepdoublec'], df['AK8Puppijet0_deepdoublecvb'])
             df['ak8jet_p_bb'] = multiclass[:, 2]
             df['ak8jet_p_cc'] = multiclass[:, 1]
+        elif 'usejax' in self._corrections:
+            import jax.experimental.stax as stax
+            init_random_params, predict = stax.serial(
+                stax.Dense(1024),
+                stax.Relu,
+                stax.Dense(1024),
+                stax.Relu,
+                stax.Dense(3),
+                stax.Softmax,
+            )
+            import pickle
+            loadnetwork = pickle.load(open("network.pkl", "rb"))
+            _pbb = (df['AK8Puppijet0_deepdoubleb'] + 1 - df['AK8Puppijet0_deepdoublecvb']) / 3.
+            _pcc = (df['AK8Puppijet0_deepdoublec'] + df['AK8Puppijet0_deepdoublecvb']) / 3.
+            df['pxx'] = np.argmax(predict(loadnetwork, np.array([_pbb, _pcc]).T), axis=1) + 1
         else:
             df['ak8jet_p_bb'] = (df['AK8Puppijet0_deepdoubleb'] + 1 - df['AK8Puppijet0_deepdoublecvb']) / 3.
             df['ak8jet_p_cc'] = (df['AK8Puppijet0_deepdoublec'] + df['AK8Puppijet0_deepdoublecvb']) / 3.
@@ -313,15 +328,18 @@ class BoostedHbbProcessor(processor.ProcessorABC):
             # (this plus mutually exclusive offline selections are sufficient)
             #selection.add('trigger', (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool') & (dataset=="JetHT"))
             #selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool') & (dataset=="SingleMuon"))
+            if self._debug:
+                print("Year:", self._year)
             selection.add('trigger', (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool')
                           & ((dataset == "data_obs_jet") | (dataset=="JetHT")))
             selection.add('mutrigger', ((df['triggerBits']&1) & df['passJson']).astype('bool')
                           & ((dataset == "data_obs_mu") | (dataset=="SingleMuon")))
             if self._debug:
-                print("X", (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool')  )
-                print("X", (df['triggerBits'] , self._corrections[f'{self._year}_triggerMask'])  )
-                print("Trigger pass/all", selection.all('trigger').sum(), df.size)
-                print("Muon trigger pass/all", selection.all('mutrigger').sum(), df.size)
+                #print("X", (df['triggerBits'] & self._corrections[f'{self._year}_triggerMask']).astype('bool')  )
+                #print("X", (df['triggerBits'] , self._corrections[f'{self._year}_triggerMask'])  )
+                print("Dataset:", df['filename'])
+                print("Trigger pass/all:", selection.all('trigger').sum(), df.size)
+                print("Muon trigger pass/all:", selection.all('mutrigger').sum(), df.size)
         else:
             selection.add('trigger', np.ones(df.size, dtype='bool'))
             selection.add('mutrigger', np.ones(df.size, dtype='bool'))
@@ -337,7 +355,7 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         selection.add('muonAcceptance', (df['vmuoLoose0_pt'] > 55.) & (np.abs(df['vmuoLoose0_eta']) < 2.1))
         selection.add('muonDphiAK8', df['muon_dphi'] > 2*np.pi/3)
         selection.add('ak4btagMediumDR08', df['ak4_leadingDeepCSV_dR08'] > btagLooseWPs[self._year])  # at least one passes medium cut
-        selection.add('antiak4btagMediumOppHem', df['opposite_ak4_leadingDeepCSV'] < btagLooseWPs[self._year])  # none pass
+        selection.add('antiak4btagMediumOppHem', np.nan_to_num(df['opposite_ak4_leadingDeepCSV'], nan=0) < btagLooseWPs[self._year])  # none pass
         selection.add('tightVjet', df['AK8Puppijet0_isTightVJet'] != 0)
         selection.add('n2ddtPass', df['ak8jet_n2ddt'] < 0)
         selection.add('jetMass', df['AK8Puppijet0_msd'] > 40.)
@@ -475,23 +493,23 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                     h.fill(**fields, weight=weight*cut)
                 else:
                     h.fill(systematic="", **fields, weight=weight*cut)
-                    if self._debug:
-                        print("Filling systematics for %s" % histname)
+                    # if self._debug:
+                    #     print("Filling systematics for %s" % histname)
                     systs = set(weights.variations)
                     systs.update(shiftSystematics)
                     for syst in systs:
-                        if self._debug:
-                            print("  Filling systematic %s" % syst)
+                        # if self._debug:
+                        #     print("  Filling systematic %s" % syst)
                         fields_syst = copy.copy(fields)
                         for val in shiftedQuantities:
                             if val+'_'+syst in df and val in fields:
                                 fields_syst[val] = df[val+'_'+syst]
-                                if self._debug:
-                                    print("    Replacing field %s with %s" % (val, val+'_'+syst))
+                                # if self._debug:
+                                #     print("    Replacing field %s with %s" % (val, val+'_'+syst))
                         if syst in weights.variations:
                             weight_syst = weights.weight(syst)
-                            if self._debug:
-                                print("    Using modified weight")
+                            # if self._debug:
+                            #     print("    Using modified weight")
                         else:
                             weight_syst = weight
                         if syst in set(shiftSystematics):
@@ -499,8 +517,8 @@ class BoostedHbbProcessor(processor.ProcessorABC):
                             for sel in regions[region]:
                                 if sel in shiftedSelections and sel+syst in selection.names:
                                     cut_syst.add(sel+syst)
-                                    if self._debug:
-                                        print("    Replacing cut %s with systematic-shifted %s" % (sel, sel+syst))
+                                    # if self._debug:
+                                    #     print("    Replacing cut %s with systematic-shifted %s" % (sel, sel+syst))
                                 else:
                                     cut_syst.add(sel)
                             cut_syst = selection.all(*cut_syst)
@@ -556,6 +574,7 @@ if __name__ == '__main__':
     parser.add_argument('--skipTrigger', action='store_true', help='Do not apply trigger weight corrections to MC')
     parser.add_argument('--externalSumW', help='Path to external sum weights file (if provided, will be used in place of self-determined sumw)')
     parser.add_argument('--multiclass', help='Path to multiclass transform NN model')
+    parser.add_argument('--jax', action='store_true', help='Use jax model')
     args = parser.parse_args()
 
     corrections = load('corrections.coffea')
@@ -565,6 +584,9 @@ if __name__ == '__main__':
 
     if args.multiclass is not None:
         corrections['multiclass'] = load(args.multiclass)
+
+    if args.jax is not None:
+        corrections['usejax'] = True
 
     from columns import gghbbcolumns, gghbbcolumns_mc
     allcolumns = gghbbcolumns + gghbbcolumns_mc

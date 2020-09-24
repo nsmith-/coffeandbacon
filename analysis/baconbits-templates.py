@@ -1,4 +1,4 @@
-    # coding: utf-8
+# coding: utf-8
 from __future__ import print_function, division
 from collections import defaultdict
 import gzip
@@ -16,17 +16,18 @@ import processmap
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--cc", default=False, action='store_true', help="Make templates for Hcc")
+parser.add_argument("--year", default=2017, help="Read hists_Hbb_create_{}.coffea file")
 parser.add_argument("--split", default=False, action='store_true', help="Split W/Z by flavor")
 parser.add_argument("--three-regions", dest='threeregions', default=False, action='store_true', help="Split by max prob pbb/pcc/pqq")
 args = parser.parse_args()
 
-hists_unmapped = load('hists_Hbb_create_2017.coffea')
+hists_unmapped = load('hists_Hbb_create_{}.coffea'.format(args.year))
 
 
 hists = {}
 for key, val in hists_unmapped.items():
     if isinstance(val, hist.Hist):
-        hists[key] = processmap.apply(val)
+        hists[key] = processmap.apply(val, args.year)
 
 if args.cc: template_file = "templatesCC.root"
 elif args.threeregions: template_file = "templates3.root"
@@ -42,28 +43,43 @@ else: h = hists['templates_signalregion']
 
 # Scale MC
 nodata = re.compile("(?!data_obs)")
-lumi = 41.1
-h.scale({p: lumi for p in h[nodata].identifiers('process')}, axis="process")
+lumi = {
+    "2016" : 35.5,
+    "2017" : 41.5,
+    "2018" : 59.2,
+}
+lumi_mu = {
+    "2016" : 35.2,
+    "2017" : 41.1,
+    "2018" : 59.0,
+}
+
+h.scale({p: lumi[args.year] for p in h[nodata].identifiers('process')}, axis="process")
 
 proc_names = h.identifiers('process')
-if args.split: proc_names += ['wcq', 'zbb', 'zcc']
+from coffea.hist import StringBin
+_extra_procs = {_s: StringBin(_s) for _s in ['wcq', 'zbb', 'zcc']}
+if args.split: proc_names += list(_extra_procs.values())
 
+totn_proc = len(proc_names) + len(h.identifiers('AK8Puppijet0_pt'))
 for proc in proc_names:
+    # if not proc.name.startswith("z"): continue
     print(proc)
     for i, ptbin in enumerate(h.identifiers('AK8Puppijet0_pt')):
         for syst in h.identifiers('systematic'):
+            # if syst.name != "": continue
             source_proc = proc
             if args.split:
-                if proc == 'zbb':
+                if proc.name == 'zbb':
                     mproj = (3,)
-                elif proc == 'wcq' or proc == 'zcc':
+                elif proc.name == 'wcq' or proc.name == 'zcc':
                     mproj = (2,)
-                elif proc == 'wqq' or proc == 'zqq':
+                elif proc.name == 'wqq' or proc.name == 'zqq':
                     mproj = (1,)
                 else:
                     mproj = (slice(None), 'all')
-                if proc in ['wcq', 'wqq']: source_proc = 'wqq'
-                if proc in ['zbb', 'zcc', 'zqq']: source_proc = 'zqq'
+                if proc.name in ['wcq', 'wqq']: source_proc = 'wqq'
+                if proc.name in ['zbb', 'zcc', 'zqq']: source_proc = 'zqq'
             else:
                 mproj = (slice(None), 'all')
             systreal = syst
@@ -124,6 +140,8 @@ for proc in proc_names:
                 content = fail_template.sum('AK8Puppijet0_msd').values()
             except:
                 content = pqq_template.sum('AK8Puppijet0_msd').values()
+            #print(ptbin, pass_template.sum('AK8Puppijet0_msd').values()[()])
+            #print(fail_template.sum('AK8Puppijet0_msd').values())
             if content == {} or content[()] == 0.:
                 print("Missing", proc, ptbin, syst)
                 continue

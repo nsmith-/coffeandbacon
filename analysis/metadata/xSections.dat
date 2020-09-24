@@ -107,6 +107,9 @@ DYJetsToLL_M-5to50_HT-200to400_TuneCUETP8M1_13TeV-madgraphMLM-pythia8           
 DYJetsToLL_M-5to50_HT-400to600_TuneCUETP8M1_13TeV-madgraphMLM-pythia8               3.581 # *1.23 remove k-factor from SUSY
 DYJetsToLL_M-5to50_HT-600toInf_TuneCUETP8M1_13TeV-madgraphMLM-pythia8               1.124 # *1.23 remove k-factor from SUSY
 DYJetsToQQ_HT180_13TeV-madgraphMLM-pythia8                                         1187 # from DAS, 1338.95 from Phil Harris`
+DYJetsToLL_Pt_250To400_13TeV_amcatnloFXFX_pythia8                                   2.991      #from XSDB
+DYJetsToLL_Pt_400To650_13TeV_amcatnloFXFX_pythia8                                   0.3882     #from XSDB
+DYJetsToLL_Pt_650ToInf_13TeV_amcatnloFXFX_pythia8                                   0.03737    #from XSDB
 ZJetsToNuNu_HT-100To200_13TeV-madgraph                                            280.35 # *1.23 remove k-factor from SUSY
 ZJetsToNuNu_HT-200To400_13TeV-madgraph                                             77.67 # *1.23 remove k-factor from SUSY
 ZJetsToNuNu_HT-400To600_13TeV-madgraph                                             10.73 # *1.23 remove k-factor from SUSY
@@ -210,6 +213,7 @@ GluGluToZZTo2mu2tau_BackgroundOnly_13TeV_MCFM                                   
 GluGluToZZTo4e_BackgroundOnly_13TeV_MCFM                                            0.001586
 GluGluToZZTo4mu_BackgroundOnly_13TeV_MCFM                                           0.001586
 GluGluToZZTo4tau_BackgroundOnly_13TeV_MCFM                                          0.001586
+TT_TuneCUETP8M2T4_13TeV_powheg_pythia8                                            831.76
 TT_TuneCUETP8M1_13TeV-powheg-pythia8                                              831.76
 TT_TuneCUETP8M1_13TeV-powheg-scaledown-pythia8                                    831.76
 TT_TuneCUETP8M1_13TeV-powheg-scaleup-pythia8                                      831.76
@@ -312,8 +316,8 @@ GluGluHToBB_M125_LHEHpT_250_Inf_13TeV_amcatnloFXFX_pythia8   0.3447 # from GenXs
 GluGluHToCC_M125_13TeV_powheg_pythia8 					48.85*5.824E-01*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
 GluGluHToCC_M125_13TeV_amcatnloFXFX_pythia8 			48.85*5.824E-01*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
 GluGluHToCC_M125_LHEHpT_250_Inf_13TeV_amcatnloFXFX_pythia8   0.3447*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
-GluGluHToBB_M-125_13TeV_powheg_MINLO_NNLOPS_pythia8          2.780e+01 #from GenXsecAnalyzer 
-GluGluHToCC_M-125_13TeV_powheg_MINLO_NNLOPS_pythia8          2.780e+01*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
+GluGluHToBB_M_125_13TeV_powheg_MINLO_NNLOPS_pythia8          2.780e+01 #from GenXsecAnalyzer 
+GluGluHToCC_M_125_13TeV_powheg_MINLO_NNLOPS_pythia8          2.780e+01*2.891E-02/5.824E-01 # FIXME: just rescaling HToBB by Br(cc)/Br(bb)
 VBFHToBB_M125_13TeV_amcatnlo_pythia8                        3.782*5.824E-01
 VBFHToBB_M_125_13TeV_powheg_pythia8_weightfix                3.782*5.824E-01
 VBFHToCC_M-125_13TeV_powheg_pythia8 3.782 * 2.891e-2 # FIXME: rescaling cc/bb

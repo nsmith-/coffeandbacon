@@ -40,19 +40,19 @@ ls hist_1DZbb*
 #### Running Hcc at DESY
 ```bash
 cd analysis
-./make_pileup.py --samplejson samplesdesy.json --sample Hbb_create_2017
-./compile_corrections.py
+python make_pileup.py --samplejson samplesdesy.json --sample Hbb_create_2017
+python compile_corrections.py
 ###
 # If runnning futures or iterative
 ./boostedHbbProcessor.py
-./run_baconbits.py --executor futures --samplejson samplesdesy.json --sample Hbb_create_2017 -j 10
+./run_baconbits.py --executor uproot --samplejson samplesdesy.json --sample Hbb_create_2017 -j 10
 
 # If runnning with parsl
-./boostedHbbProcessor.py --externalSumW correction_files/sumw_mc.coffea
-./run_baconbits.py --executor parsl --samplejson samplesdesy.json --sample Hbb_create_2017
+python boostedHbbProcessor.py --externalSumW correction_files/sumw_mc.coffea  --year 2017
+python run_baconbits.py --executor parsl --samplejson samplesdesy.json --sample Hbb_create_2017
 ###
-python baconbits-templates.py --cc --split
-python convert2d.py --cc --split
+python baconbits-templates.py --cc --split --year 2017
+python convert2d.py --cc 
 ls hist_1DZcc*
 ```
 

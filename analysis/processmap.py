@@ -22,10 +22,10 @@ process_map["vbfhqq125"] = [
     "VBFHToBB_M_125_13TeV_powheg_pythia8_weightfix",
 ]
 process_map["hqq125"] = [
-    "GluGluHToBB_M125_13TeV_powheg_pythia8",
+    "GluGluHToBB_M_125_13TeV_powheg_MINLO_NNLOPS_pythia8",
 ]
 process_map["hcc125"] = [
-    "GluGluHToCC_M125_LHEHpT_250_Inf_13TeV_amcatnloFXFX_pythia8",
+    "GluGluHToCC_M_125_13TeV_powheg_MINLO_NNLOPS_pythia8",
 ]
 
 process_map["zll"] = [
@@ -85,5 +85,22 @@ process_map["data_obs"] = [
     "data_obs_mu",
 ]
 
-def apply(h):
+
+def apply(h, year):
+    if year == "2016":
+        for key in process_map.keys():
+            temp_list = []
+            for samp in process_map[key]:
+                temp_list.append(samp.replace("TuneCP5", "TuneCUETP8M1"))
+            process_map[key] = temp_list
+        process_map["zqq"] = [
+            "DYJetsToQQ_HT180_13TeV-madgraphMLM-pythia8",
+        ]
+        process_map["wqq"] = [
+            "WJetsToQQ_HT180_13TeV-madgraphMLM-pythia8",
+        ]
+        process_map["tqq"] = [
+            "TT_TuneCUETP8M2T4_13TeV_powheg_pythia8",
+        ]
+        
     return h.group(process_cat, process, process_map)

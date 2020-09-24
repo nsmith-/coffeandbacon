@@ -18,10 +18,11 @@ wrk_init = '''
 export XRD_RUNFORKHANDLER=1
 export X509_USER_PROXY=x509up_u31233
 export X509_CERT_DIR=/home/anovak/certs/
+ulimit -u 8192
 '''#%(x509_proxy)
 
 twoGB = 1024
-nproc = 30
+nproc = 40
 
 sched_opts = '''
 #SBATCH --cpus-per-task=%d
@@ -36,22 +37,23 @@ slurm_htex = Config(
             address=address_by_hostname(),
             prefetch_capacity=0,
             max_workers=nproc,
-            suppress_failure=True,
+            #suppress_failure=True,
             provider=SlurmProvider(
                 channel=LocalChannel(script_dir='test_parsl'),
                 launcher=SrunLauncher(),
                 #min_blocks=4,
-                init_blocks=20,
+                #init_blocks=6,
                 max_blocks=20,
-                nodes_per_block=1,
+                init_blocks=10, 
+                #nodes_per_block=1,
                 partition='all',
-                scheduler_options=sched_opts,   # Enter scheduler_options if needed
+                #scheduler_options=sched_opts,   # Enter scheduler_options if needed
                 worker_init=wrk_init,         # Enter worker_init if needed
                 walltime='00:120:00'
             ),
         )
     ],
-    retries=10,
+    retries=20,
     strategy=None,
 )
 
