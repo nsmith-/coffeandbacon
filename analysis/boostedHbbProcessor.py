@@ -346,6 +346,12 @@ class BoostedHbbProcessor(processor.ProcessorABC):
         regions['hCCsignalregion'] = {'trigger', 'noLeptons', 'jetKinematics', 'pfmet', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem', 'deepcvb'}
         regions['hCCmuoncontrol'] = {'mutrigger', 'oneMuon', 'muonAcceptance', 'jetKinematicsMuonCR', 'n2ddtPass', 'tightVjet', 'ak4btagMediumDR08', 'muonDphiAK8', 'deepcvb'}
 
+        if self._debug:
+            cutflow = ['trigger', 'noLeptons', 'jetKinematics', 'pfmet', 'n2ddtPass', 'tightVjet', 'antiak4btagMediumOppHem', 'all']
+            for i in range(len(cutflow)):
+                n = selection.all(*cutflow[:i]).sum()
+                print("Debug cutflow: before %15s = % 6d" % (cutflow[i], n))
+
         shiftSystematics = ['JESUp', 'JESDown', 'JERUp', 'JERDown']
         shiftedQuantities = {'AK8Puppijet0_pt', 'pfmet'}
         shiftedSelections = {'jetKinematics', 'jetKinematicsMuonCR', 'pfmet'}
